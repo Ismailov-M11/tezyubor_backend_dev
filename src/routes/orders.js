@@ -227,14 +227,19 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
 
     console.log('[MyTaxi] offer response:', JSON.stringify(result))
 
-    const deliveryOffer = result?.offers?.find((o) => Number(o.tariff_id) === 22)
+    const deliveryOffer = result?.offers?.find((o) => o.tariff_id === 'delivery')
     if (!deliveryOffer) {
       return res.json({ success: true, data: { available: false, price: null, eta: null, error: 'Доставка недоступна в этом районе' } })
     }
 
     res.json({
       success: true,
-      data: { available: true, price: deliveryOffer.price, eta: deliveryOffer.eta, error: null },
+      data: {
+        available: true,
+        price: deliveryOffer.total_price,
+        eta: result?.route?.duration ?? null,
+        error: null,
+      },
     })
   } catch (err) {
     console.log('[MyTaxi] evaluate error:', err.message)

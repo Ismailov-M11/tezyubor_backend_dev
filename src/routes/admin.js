@@ -233,7 +233,7 @@ router.put('/orders/:token/confirm', requirePermission('orders:confirm'), async 
       } else if (courier === 'mytaxi') {
         const mytaxiApi = require('../utils/mytaxiApi')
         const offerResult = await mytaxiApi.getOffer(order.pharmacy.lat, order.pharmacy.lng, order.customerLat, order.customerLng)
-        const deliveryOffer = offerResult?.offers?.find((o) => Number(o.tariff_id) === 22)
+        const deliveryOffer = offerResult?.offers?.find((o) => o.tariff_id === 'delivery')
         if (!deliveryOffer) {
           return res.status(400).json({ success: false, message: 'MyTaxi: доставка недоступна в этом районе' })
         }

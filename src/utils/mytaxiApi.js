@@ -1,6 +1,6 @@
 const MYTAXI_HOST  = process.env.MYTAXI_API_HOST || 'https://external.mytaxi.uz'
 const MYTAXI_TOKEN = process.env.MYTAXI_TOKEN
-const DELIVERY_TARIFF_ID = 22
+const DELIVERY_TARIFF_ID = 'delivery'
 
 function mytaxiHeaders() {
   return {
@@ -50,7 +50,7 @@ async function createOrder(order, offerId) {
 
   const body = {
     offer_id: offerId,
-    tariff_id: DELIVERY_TARIFF_ID,
+    tariff_id: DELIVERY_TARIFF_ID, // "delivery"
     user_name: order.customerName || 'Клиент',
     user_phone: order.customerPhone,
     comment: commentParts.join(', ') || undefined,
