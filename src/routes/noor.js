@@ -90,6 +90,12 @@ router.post('/webhook', async (req, res) => {
       await prisma.order.update({ where: { id: vendor_order_id }, data: updateData })
     }
 
+    if (newStatus) {
+      await prisma.orderStatusLog.create({
+        data: { orderId: order.id, status: newStatus, source: 'noor', rawStatus: String(stage) },
+      })
+    }
+
     // Retry finding a courier when Noor couldn't find one
     if (stage === 3 && order.noorOrderId) {
       try {

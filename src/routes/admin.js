@@ -212,6 +212,7 @@ router.put('/orders/:token/confirm', requirePermission('orders:confirm'), async 
     let noorOrderId = order.noorOrderId
     let noorDisplayId = order.noorDisplayId
     let millenniumOrderId = order.millenniumOrderId
+    let mytaxiOrderId = order.mytaxiOrderId
     let trackingUrl = order.trackingUrl
 
     if (!SKIP) {
@@ -229,12 +230,21 @@ router.put('/orders/:token/confirm', requirePermission('orders:confirm'), async 
       } else if (courier === 'millennium') {
         const tmRes = await millenniumApi.createOrder({ ...order, pharmacy: order.pharmacy })
         millenniumOrderId = tmRes?.data?.order_id ?? null
+      } else if (courier === 'mytaxi') {
+        const mytaxiApi = require('../utils/mytaxiApi')
+        const offerResult = await mytaxiApi.getOffer(order.pharmacy.lat, order.pharmacy.lng, order.customerLat, order.customerLng)
+        const deliveryOffer = offerResult?.offers?.find((o) => Number(o.tariff_id) === 22)
+        if (!deliveryOffer) {
+          return res.status(400).json({ success: false, message: 'MyTaxi: доставка недоступна в этом районе' })
+        }
+        const mtRes = await mytaxiApi.createOrder({ ...order, pharmacy: order.pharmacy }, offerResult.offer_id)
+        mytaxiOrderId = mtRes?.order_id ?? null
       }
     }
 
     const updated = await prisma.order.update({
       where: { token: req.params.token },
-      data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, trackingUrl },
+      data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, trackingUrl },
     })
     res.json({ success: true, data: updated })
   } catch (err) {

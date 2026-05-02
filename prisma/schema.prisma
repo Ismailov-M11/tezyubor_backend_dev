@@ -105,9 +105,22 @@ model Order {
   noorOrderId        Int?
   noorDisplayId      Int?
   millenniumOrderId  Int?
+  mytaxiOrderId      Int?
+
+  statusLogs OrderStatusLog[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+
+model OrderStatusLog {
+  id        String      @id @default(cuid())
+  orderId   String
+  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status    OrderStatus
+  source    CourierType
+  rawStatus String?
+  createdAt DateTime    @default(now())
 }
 
 enum OrderStatus {
@@ -125,4 +138,5 @@ enum CourierType {
   yandex
   noor
   millennium
+  mytaxi
 }

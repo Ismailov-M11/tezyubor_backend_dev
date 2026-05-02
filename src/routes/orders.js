@@ -3,6 +3,7 @@ const prisma = require('../config/db')
 const { auth } = require('../middleware/auth')
 const noorApi = require('../utils/noorApi')
 const millenniumApi = require('../utils/millenniumApi')
+const mytaxiApi = require('../utils/mytaxiApi')
 
 const NOOR_EVAL_ERRORS = {
   23: 'Недостаточно средств на балансе Noor',
@@ -199,6 +200,61 @@ router.post('/:token/millennium/evaluate', async (req, res, next) => {
   } catch (err) {
     console.log('[Millennium] error:', err.message)
     res.json({ success: true, data: { available: false, price: null, error: err.message } })
+  }
+})
+
+// POST /api/orders/:token/mytaxi/evaluate — get MyTaxi price & availability before confirming
+router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { token: req.params.token },
+      include: { pharmacy: { select: { lat: true, lng: true } } },
+    })
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+    if (!order.customerLat || !order.customerLng) {
+      return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
+    }
+    if (!order.pharmacy.lat || !order.pharmacy.lng) {
+      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    }
+
+    console.log(`[MyTaxi] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+
+    const result = await mytaxiApi.getOffer(
+      order.pharmacy.lat, order.pharmacy.lng,
+      order.customerLat, order.customerLng,
+    )
+
+    console.log('[MyTaxi] offer response:', JSON.stringify(result))
+
+    const deliveryOffer = result?.offers?.find((o) => Number(o.tariff_id) === 22)
+    if (!deliveryOffer) {
+      return res.json({ success: true, data: { available: false, price: null, eta: null, error: 'Доставка недоступна в этом районе' } })
+    }
+
+    res.json({
+      success: true,
+      data: { available: true, price: deliveryOffer.price, eta: deliveryOffer.eta, error: null },
+    })
+  } catch (err) {
+    console.log('[MyTaxi] evaluate error:', err.message)
+    res.json({ success: true, data: { available: false, price: null, eta: null, error: err.message } })
+  }
+})
+
+// GET /api/orders/:token/status-logs — status change history (public, token-gated)
+router.get('/:token/status-logs', async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({ where: { token: req.params.token } })
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+
+    const logs = await prisma.orderStatusLog.findMany({
+      where: { orderId: order.id },
+      orderBy: { createdAt: 'asc' },
+    })
+    res.json({ success: true, data: { logs } })
+  } catch (err) {
+    next(err)
   }
 })
 

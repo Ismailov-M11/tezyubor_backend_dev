@@ -15,6 +15,7 @@ const rolesRoutes = require('./src/routes/roles')
 const adminUsersRoutes = require('./src/routes/adminUsers')
 const noorRoutes = require('./src/routes/noor')
 const millenniumRoutes = require('./src/routes/millennium')
+const mytaxiRoutes = require('./src/routes/mytaxi')
 const webhooksRoutes = require('./src/routes/webhooks')
 
 const app = express()
@@ -44,6 +45,7 @@ app.use(express.json())
 // Origin header from delivery services doesn't get rejected.
 app.use('/api/noor', noorRoutes)
 app.use('/api/millennium', millenniumRoutes)
+app.use('/api/mytaxi', mytaxiRoutes)
 app.use('/api/webhooks', webhooksRoutes)
 
 // CORS for browser clients

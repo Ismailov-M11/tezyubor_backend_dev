@@ -67,6 +67,17 @@ router.post('/webhook', async (req, res) => {
       })
     }
 
+    if (updateData.status) {
+      await prisma.orderStatusLog.create({
+        data: {
+          orderId:   order.id,
+          status:    updateData.status,
+          source:    'millennium',
+          rawStatus: state_id != null ? String(state_id) : state_kind,
+        },
+      })
+    }
+
     res.json({ success: true })
   } catch (err) {
     console.error('Millennium webhook error:', err)
