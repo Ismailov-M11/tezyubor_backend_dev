@@ -55,8 +55,11 @@ router.post('/', auth, requireRole('admin'), async (req, res, next) => {
     if (password.length < 6) {
       return res.status(400).json({ success: false, message: 'Password must be at least 6 characters' })
     }
-    const exists = await prisma.owner.findUnique({ where: { login } })
-    if (exists) {
+    const [ownerExists, pharmacyExists] = await Promise.all([
+      prisma.owner.findUnique({ where: { login } }),
+      prisma.pharmacy.findUnique({ where: { login } }),
+    ])
+    if (ownerExists || pharmacyExists) {
       return res.status(409).json({ success: false, message: 'Login already in use' })
     }
     const hashed = await bcrypt.hash(password, 10)
@@ -80,11 +83,15 @@ router.put('/:id', auth, requireRole('admin'), async (req, res, next) => {
     if (email !== undefined) data.email = email || null
     if (isActive !== undefined) data.isActive = Boolean(isActive)
     if (login !== undefined && login.trim()) {
-      const conflict = await prisma.owner.findUnique({ where: { login } })
-      if (conflict && conflict.id !== req.params.id) {
+      const trimmed = login.trim()
+      const [ownerConflict, pharmacyConflict] = await Promise.all([
+        prisma.owner.findUnique({ where: { login: trimmed } }),
+        prisma.pharmacy.findUnique({ where: { login: trimmed } }),
+      ])
+      if ((ownerConflict && ownerConflict.id !== req.params.id) || pharmacyConflict) {
         return res.status(409).json({ success: false, message: 'Login already in use' })
       }
-      data.login = login.trim()
+      data.login = trimmed
     }
     if (newPassword && newPassword.trim()) {
       if (newPassword.trim().length < 6) {
