@@ -36,6 +36,7 @@ router.get('/me', async (req, res, next) => {
         id: true, name: true, ownerName: true, address: true, phone: true,
         email: true, lat: true, lng: true, login: true,
         isActive: true, subscriptionExpiry: true, allowedCouriers: true, createdAt: true,
+        noorPaymentType: true, balance: true,
       }
     })
     if (!pharmacy) return res.status(404).json({ success: false, message: 'Not found' })
@@ -48,12 +49,15 @@ router.get('/me', async (req, res, next) => {
 // PUT /api/pharmacy/me — update own profile
 router.put('/me', async (req, res, next) => {
   try {
-    const { name, ownerName, phone, address, currentPassword, newPassword } = req.body
+    const { name, ownerName, phone, address, currentPassword, newPassword, noorPaymentType } = req.body
     const data = {}
     if (name !== undefined && name.trim()) data.name = name.trim()
     if (ownerName !== undefined) data.ownerName = ownerName || null
     if (phone !== undefined && phone.trim()) data.phone = normalizePhone(phone) || phone.trim()
     if (address !== undefined) data.address = address || null
+    if (noorPaymentType !== undefined && ['CASH', 'BALANCE'].includes(noorPaymentType)) {
+      data.noorPaymentType = noorPaymentType
+    }
 
     if (newPassword && newPassword.trim()) {
       if (!currentPassword) {
@@ -245,7 +249,7 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
 
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true, address: true, phone: true, name: true } } },
+      include: { pharmacy: { select: { lat: true, lng: true, address: true, phone: true, name: true, noorPaymentType: true, balance: true } } },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (order.pharmacyId !== req.user.id) return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -260,6 +264,7 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
     let millenniumOrderId = order.millenniumOrderId
     let mytaxiOrderId = order.mytaxiOrderId
     let trackingUrl = order.trackingUrl
+    let orderPaymentType = order.paymentType
 
     if (!SKIP) {
       if (courier === 'noor') {
@@ -269,7 +274,22 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
           const NOOR_ERRORS = { 23: 'Недостаточно средств на балансе Noor', 27: 'Нет свободных курьеров', 28: 'Адрес вне зоны Noor' }
           return res.status(400).json({ success: false, message: NOOR_ERRORS[stage] || `Noor: ошибка (stage ${stage})` })
         }
-        const noorRes = await noorApi.createOrder({ ...order, pharmacy: order.pharmacy })
+
+        const noorPmtType = order.pharmacy.noorPaymentType || 'CASH'
+
+        if (noorPmtType === 'BALANCE') {
+          const deliveryCost = order.deliveryPrice || 0
+          if (order.pharmacy.balance < deliveryCost) {
+            return res.status(400).json({ success: false, message: 'Недостаточно средств на балансе для создания заказа' })
+          }
+          await prisma.pharmacy.update({
+            where: { id: req.user.id },
+            data: { balance: { decrement: deliveryCost } },
+          })
+          orderPaymentType = 'BALANCE'
+        }
+
+        const noorRes = await noorApi.createOrder({ ...order, pharmacy: order.pharmacy }, 'ru', noorPmtType)
         noorOrderId = noorRes?.order?.id ?? null
         noorDisplayId = noorRes?.order?.display_id ?? null
         trackingUrl = noorRes?.order?.link ?? noorRes?.order?.tracking_url ?? null
@@ -290,7 +310,7 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
 
     const updated = await prisma.order.update({
       where: { token: req.params.token },
-      data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, trackingUrl },
+      data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, trackingUrl, paymentType: orderPaymentType },
     })
     res.json({ success: true, data: updated })
   } catch (err) {
@@ -304,6 +324,14 @@ router.put('/orders/:token/cancel', async (req, res, next) => {
     const order = await prisma.order.findUnique({ where: { token: req.params.token } })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (order.pharmacyId !== req.user.id) return res.status(403).json({ success: false, message: 'Forbidden' })
+
+    if (order.paymentType === 'BALANCE' && order.selectedCourier === 'noor' && order.deliveryPrice) {
+      await prisma.pharmacy.update({
+        where: { id: order.pharmacyId },
+        data: { balance: { increment: order.deliveryPrice } },
+      })
+    }
+
     const updated = await prisma.order.update({
       where: { token: req.params.token },
       data: { status: 'cancelled' },

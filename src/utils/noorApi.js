@@ -72,7 +72,7 @@ async function evaluate(orgLat, orgLon, destLat, destLon) {
 /**
  * Create a Noor Express delivery order.
  */
-async function createOrder(order, acceptLanguage = 'ru') {
+async function createOrder(order, acceptLanguage = 'ru', paymentType = 'CASH') {
   const url = `${NOOR_HOST}/api/v1/orders`
 
   const floor = order.floor && /^\d+$/.test(order.floor) ? parseInt(order.floor) : null
@@ -84,7 +84,7 @@ async function createOrder(order, acceptLanguage = 'ru') {
     is_business: true,
     is_paid: true,
     ...(NOOR_ACCOUNT_ID && { accountId: NOOR_ACCOUNT_ID }),
-    payment_type: 'CASH',
+    payment_type: paymentType,
     origin: [{
       location: { long: order.pharmacy.lng, lat: order.pharmacy.lat },
       order: 1,

@@ -139,7 +139,7 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true } } },
+      include: { pharmacy: { select: { lat: true, lng: true, noorPaymentType: true, balance: true } } },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
@@ -147,6 +147,11 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
     }
     if (!order.pharmacy.lat || !order.pharmacy.lng) {
       return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    }
+
+    // If pharmacy uses balance payment — block immediately if balance is zero
+    if (order.pharmacy.noorPaymentType === 'BALANCE' && order.pharmacy.balance <= 0) {
+      return res.json({ success: true, data: { available: false, stage: null, price: null, error: 'Недостаточно средств на балансе' } })
     }
 
     console.log(`[Noor] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
@@ -159,10 +164,15 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
     console.log('[Noor] evaluate response:', JSON.stringify(result))
 
     const stage = result?.evaluated_stage
-    const available = stage === 1
-    const errorMessage = available ? null : (NOOR_EVAL_ERRORS[stage] || `Ошибка оценки (stage ${stage})`)
-
+    let available = stage === 1
     const price = result?.total_delivery_price ?? null
+    let errorMessage = available ? null : (NOOR_EVAL_ERRORS[stage] || `Ошибка оценки (stage ${stage})`)
+
+    // If pharmacy uses balance — also check price fits in balance
+    if (available && order.pharmacy.noorPaymentType === 'BALANCE' && price !== null && order.pharmacy.balance < price) {
+      available = false
+      errorMessage = 'Недостаточно средств на балансе'
+    }
 
     console.log(`[Noor] result: available=${available}, stage=${stage}, price=${price}, error=${errorMessage}`)
 

@@ -90,6 +90,14 @@ router.post('/webhook', async (req, res) => {
       await prisma.order.update({ where: { id: vendor_order_id }, data: updateData })
     }
 
+    // Refund balance if order was paid via BALANCE and is now cancelled
+    if (newStatus === 'cancelled' && order.paymentType === 'BALANCE' && order.deliveryPrice) {
+      await prisma.pharmacy.update({
+        where: { id: order.pharmacyId },
+        data: { balance: { increment: order.deliveryPrice } },
+      })
+    }
+
     if (newStatus) {
       await prisma.orderStatusLog.create({
         data: { orderId: order.id, status: newStatus, source: 'noor', rawStatus: String(stage) },

@@ -59,6 +59,8 @@ model Pharmacy {
   requiresLocation     Boolean               @default(false)
   subscriptionExpiry   DateTime?
   allowedCouriers      String                @default("yandex,noor,millennium")
+  noorPaymentType      String                @default("CASH")
+  balance              Float                 @default(100000)
   selfRegistered       Boolean               @default(false)
   createdById          String?
   createdBy            AdminUser?            @relation("PharmacyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
@@ -102,6 +104,7 @@ model Order {
   deliveryPrice   Float?
   trackingUrl     String?
   totalPrice      Float?
+  paymentType     String       @default("CASH")
   noorOrderId        Int?
   noorDisplayId      Int?
   millenniumOrderId  Int?
