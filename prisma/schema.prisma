@@ -44,6 +44,18 @@ model AdminUserRole {
   @@id([userId, roleId])
 }
 
+model Owner {
+  id         String     @id @default(cuid())
+  name       String
+  phone      String?
+  email      String?
+  login      String     @unique
+  password   String
+  isActive   Boolean    @default(true)
+  createdAt  DateTime   @default(now())
+  pharmacies Pharmacy[]
+}
+
 model Pharmacy {
   id                   String                @id @default(cuid())
   name                 String
@@ -66,6 +78,8 @@ model Pharmacy {
   selfRegistered       Boolean               @default(false)
   createdById          String?
   createdBy            AdminUser?            @relation("PharmacyCreatedBy", fields: [createdById], references: [id], onDelete: SetNull)
+  ownerId              String?
+  owner                Owner?                @relation(fields: [ownerId], references: [id], onDelete: SetNull)
   createdAt            DateTime              @default(now())
   orders               Order[]
   subscriptionPayments SubscriptionPayment[]

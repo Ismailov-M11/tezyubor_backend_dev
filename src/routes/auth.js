@@ -119,6 +119,45 @@ router.post('/admin/login', async (req, res, next) => {
   }
 })
 
+// POST /api/auth/owner/login
+router.post('/owner/login', async (req, res, next) => {
+  try {
+    const { login, password } = req.body
+    if (!login || !password) {
+      return res.status(400).json({ success: false, message: 'Login and password required' })
+    }
+    const owner = await prisma.owner.findUnique({ where: { login } })
+    if (!owner) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' })
+    }
+    if (!owner.isActive) {
+      return res.status(403).json({ success: false, message: 'Account inactive' })
+    }
+    const valid = await bcrypt.compare(password, owner.password)
+    if (!valid) {
+      return res.status(401).json({ success: false, message: 'Invalid credentials' })
+    }
+    const token = jwt.sign(
+      { id: owner.id, role: 'owner', name: owner.name },
+      process.env.JWT_SECRET,
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+    )
+    res.json({
+      success: true,
+      data: {
+        token,
+        user: {
+          id: owner.id,
+          role: 'owner',
+          name: owner.name,
+        }
+      }
+    })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // POST /api/auth/signup — creates pharmacy account with 7-day trial
 router.post('/signup', async (req, res, next) => {
   try {
