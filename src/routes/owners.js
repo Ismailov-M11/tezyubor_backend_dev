@@ -17,6 +17,16 @@ const PHARMACY_SELECT = {
   district: true,
 }
 
+const OWNER_SELECT = {
+  id: true,
+  name: true,
+  phone: true,
+  email: true,
+  login: true,
+  isActive: true,
+  createdAt: true,
+}
+
 // GET /api/admin/owners — list all owners with their pharmacies
 router.get('/', auth, requireRole('admin'), async (req, res, next) => {
   try {
@@ -35,9 +45,7 @@ router.get('/', auth, requireRole('admin'), async (req, res, next) => {
     const owners = await prisma.owner.findMany({
       where,
       orderBy: { createdAt: 'desc' },
-      include: {
-        pharmacies: { select: PHARMACY_SELECT },
-      },
+      select: { ...OWNER_SELECT, pharmacies: { select: PHARMACY_SELECT } },
     })
     res.json({ success: true, data: { owners, total: owners.length } })
   } catch (err) {
@@ -65,7 +73,7 @@ router.post('/', auth, requireRole('admin'), async (req, res, next) => {
     const hashed = await bcrypt.hash(password, 10)
     const owner = await prisma.owner.create({
       data: { name, phone: phone || null, email: email || null, login, password: hashed },
-      include: { pharmacies: { select: PHARMACY_SELECT } },
+      select: { ...OWNER_SELECT, pharmacies: { select: PHARMACY_SELECT } },
     })
     res.status(201).json({ success: true, data: owner })
   } catch (err) {
@@ -102,7 +110,7 @@ router.put('/:id', auth, requireRole('admin'), async (req, res, next) => {
     const owner = await prisma.owner.update({
       where: { id: req.params.id },
       data,
-      include: { pharmacies: { select: PHARMACY_SELECT } },
+      select: { ...OWNER_SELECT, pharmacies: { select: PHARMACY_SELECT } },
     })
     res.json({ success: true, data: owner })
   } catch (err) {
@@ -110,13 +118,9 @@ router.put('/:id', auth, requireRole('admin'), async (req, res, next) => {
   }
 })
 
-// DELETE /api/admin/owners/:id — delete owner (unlinks pharmacies first)
+// DELETE /api/admin/owners/:id — delete owner (many-to-many links cascade via Prisma)
 router.delete('/:id', auth, superAdminOnly, async (req, res, next) => {
   try {
-    await prisma.pharmacy.updateMany({
-      where: { ownerId: req.params.id },
-      data: { ownerId: null },
-    })
     await prisma.owner.delete({ where: { id: req.params.id } })
     res.json({ success: true })
   } catch (err) {
@@ -132,7 +136,7 @@ router.post('/:id/assign/:pharmacyId', auth, requireRole('admin'), async (req, r
 
     const pharmacy = await prisma.pharmacy.update({
       where: { id: req.params.pharmacyId },
-      data: { ownerId: req.params.id },
+      data: { owners: { connect: { id: req.params.id } } },
       select: PHARMACY_SELECT,
     })
     res.json({ success: true, data: pharmacy })
@@ -146,7 +150,7 @@ router.delete('/:id/assign/:pharmacyId', auth, requireRole('admin'), async (req,
   try {
     const pharmacy = await prisma.pharmacy.update({
       where: { id: req.params.pharmacyId },
-      data: { ownerId: null },
+      data: { owners: { disconnect: { id: req.params.id } } },
       select: PHARMACY_SELECT,
     })
     res.json({ success: true, data: pharmacy })

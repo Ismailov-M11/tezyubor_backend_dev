@@ -28,7 +28,7 @@ router.use(auth, requireRole('owner'))
 router.get('/stores', async (req, res, next) => {
   try {
     const pharmacies = await prisma.pharmacy.findMany({
-      where: { ownerId: req.user.id },
+      where: { owners: { some: { id: req.user.id } } },
       select: {
         id: true, name: true, ownerName: true, address: true, phone: true,
         email: true, lat: true, lng: true, login: true,
@@ -47,7 +47,7 @@ router.get('/stores', async (req, res, next) => {
 router.get('/orders', async (req, res, next) => {
   try {
     const myStores = await prisma.pharmacy.findMany({
-      where: { ownerId: req.user.id },
+      where: { owners: { some: { id: req.user.id } } },
       select: { id: true },
     })
     const storeIds = myStores.map((p) => p.id)
@@ -123,7 +123,7 @@ router.post('/orders', async (req, res, next) => {
     }
 
     const pharmacy = await prisma.pharmacy.findFirst({
-      where: { id: pharmacyId, ownerId: req.user.id },
+      where: { id: pharmacyId, owners: { some: { id: req.user.id } } },
       select: { id: true, name: true, isActive: true },
     })
     if (!pharmacy) {

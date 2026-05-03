@@ -361,8 +361,7 @@ router.get('/pharmacies', requirePermission('pharmacies:view'), async (req, res,
         lat: true, lng: true, login: true,
         isActive: true, subscriptionExpiry: true, allowedCouriers: true, createdAt: true,
         noorPaymentType: true, balance: true,
-        ownerId: true,
-        owner: { select: { id: true, name: true } },
+        owners: { select: { id: true, name: true } },
         _count: { select: { orders: true } }
       }
     })
