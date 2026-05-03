@@ -36,7 +36,7 @@ router.get('/me', async (req, res, next) => {
         id: true, name: true, ownerName: true, address: true, phone: true,
         email: true, lat: true, lng: true, login: true,
         isActive: true, subscriptionExpiry: true, allowedCouriers: true, createdAt: true,
-        noorPaymentType: true, balance: true,
+        noorPaymentType: true, balance: true, city: true, district: true,
       }
     })
     if (!pharmacy) return res.status(404).json({ success: false, message: 'Not found' })
@@ -49,12 +49,14 @@ router.get('/me', async (req, res, next) => {
 // PUT /api/pharmacy/me — update own profile
 router.put('/me', async (req, res, next) => {
   try {
-    const { name, ownerName, phone, address, currentPassword, newPassword, noorPaymentType } = req.body
+    const { name, ownerName, phone, address, city, district, currentPassword, newPassword, noorPaymentType } = req.body
     const data = {}
     if (name !== undefined && name.trim()) data.name = name.trim()
     if (ownerName !== undefined) data.ownerName = ownerName || null
     if (phone !== undefined && phone.trim()) data.phone = normalizePhone(phone) || phone.trim()
     if (address !== undefined) data.address = address || null
+    if (city !== undefined) data.city = city || null
+    if (district !== undefined) data.district = district || null
     if (noorPaymentType !== undefined && ['CASH', 'BALANCE'].includes(noorPaymentType)) {
       data.noorPaymentType = noorPaymentType
     }
@@ -80,7 +82,8 @@ router.put('/me', async (req, res, next) => {
       select: {
         id: true, name: true, ownerName: true, address: true, phone: true,
         email: true, lat: true, lng: true, login: true,
-        isActive: true, subscriptionExpiry: true,
+        isActive: true, subscriptionExpiry: true, city: true, district: true,
+        noorPaymentType: true, balance: true,
       }
     })
     res.json({ success: true, data: updated })

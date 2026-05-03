@@ -59,6 +59,8 @@ model Pharmacy {
   requiresLocation     Boolean               @default(false)
   subscriptionExpiry   DateTime?
   allowedCouriers      String                @default("yandex,noor,millennium")
+  city                 String?
+  district             String?
   noorPaymentType      String                @default("CASH")
   balance              Float                 @default(100000)
   selfRegistered       Boolean               @default(false)
