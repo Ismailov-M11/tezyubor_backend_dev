@@ -5,44 +5,69 @@ const prisma = require('../config/db')
 
 const router = express.Router()
 
-// POST /api/auth/pharmacy/login
+// POST /api/auth/pharmacy/login — handles both pharmacy and owner accounts
 router.post('/pharmacy/login', async (req, res, next) => {
   try {
     const { login, password } = req.body
     if (!login || !password) {
       return res.status(400).json({ success: false, message: 'Login and password required' })
     }
+
+    // Check pharmacy first
     const pharmacy = await prisma.pharmacy.findUnique({ where: { login } })
-    if (!pharmacy) {
+    if (pharmacy) {
+      const subscriptionExpired = pharmacy.subscriptionExpiry && pharmacy.subscriptionExpiry < new Date()
+      if (!pharmacy.isActive && !subscriptionExpired) {
+        return res.status(403).json({ success: false, message: 'Account inactive' })
+      }
+      const valid = await bcrypt.compare(password, pharmacy.password)
+      if (!valid) {
+        return res.status(401).json({ success: false, message: 'Invalid credentials' })
+      }
+      const token = jwt.sign(
+        { id: pharmacy.id, role: 'pharmacy', name: pharmacy.name },
+        process.env.JWT_SECRET,
+        { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
+      )
+      return res.json({
+        success: true,
+        data: {
+          token,
+          user: {
+            id: pharmacy.id,
+            role: 'pharmacy',
+            name: pharmacy.name,
+            lat: pharmacy.lat,
+            lng: pharmacy.lng,
+            requiresLocation: pharmacy.requiresLocation,
+            subscriptionExpiry: pharmacy.subscriptionExpiry,
+          }
+        }
+      })
+    }
+
+    // Not a pharmacy — check owner
+    const owner = await prisma.owner.findUnique({ where: { login } })
+    if (!owner) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' })
     }
-    const subscriptionExpired = pharmacy.subscriptionExpiry && pharmacy.subscriptionExpiry < new Date()
-    // Block only if manually deactivated by admin (not because of subscription expiry)
-    if (!pharmacy.isActive && !subscriptionExpired) {
+    if (!owner.isActive) {
       return res.status(403).json({ success: false, message: 'Account inactive' })
     }
-    const valid = await bcrypt.compare(password, pharmacy.password)
+    const valid = await bcrypt.compare(password, owner.password)
     if (!valid) {
       return res.status(401).json({ success: false, message: 'Invalid credentials' })
     }
     const token = jwt.sign(
-      { id: pharmacy.id, role: 'pharmacy', name: pharmacy.name },
+      { id: owner.id, role: 'owner', name: owner.name },
       process.env.JWT_SECRET,
       { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     )
-    res.json({
+    return res.json({
       success: true,
       data: {
         token,
-        user: {
-          id: pharmacy.id,
-          role: 'pharmacy',
-          name: pharmacy.name,
-          lat: pharmacy.lat,
-          lng: pharmacy.lng,
-          requiresLocation: pharmacy.requiresLocation,
-          subscriptionExpiry: pharmacy.subscriptionExpiry,
-        }
+        user: { id: owner.id, role: 'owner', name: owner.name }
       }
     })
   } catch (err) {
