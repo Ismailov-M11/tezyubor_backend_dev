@@ -98,8 +98,14 @@ model SubscriptionPayment {
 model Order {
   id              String      @id @default(cuid())
   token           String      @unique
-  pharmacyId      String
-  pharmacy        Pharmacy    @relation(fields: [pharmacyId], references: [id])
+  pharmacyId      String?
+  pharmacy        Pharmacy?   @relation(fields: [pharmacyId], references: [id])
+  partnerId       String?
+  partner         Partner?    @relation("PartnerOrders", fields: [partnerId], references: [id])
+  partnerShopId   String?
+  partnerShop     PartnerShop? @relation("PartnerShopOrders", fields: [partnerShopId], references: [id])
+  actualDeliveryPrice Float?
+  markupAmount        Float?
   status          OrderStatus @default(pending)
   pharmacyComment String?
   medicinesTotal  Float    @default(0)
@@ -157,4 +163,59 @@ enum CourierType {
   noor
   millennium
   mytaxi
+}
+
+enum PartnerType {
+  MARKETPLACE
+  POST_SYSTEM
+}
+
+model Partner {
+  id          String      @id @default(cuid())
+  name        String
+  type        PartnerType
+  apiToken    String      @unique
+  phone       String?
+  address     String?
+  lat         Float?
+  lng         Float?
+  balance     Float       @default(0)
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  updatedAt   DateTime    @updatedAt
+
+  courierMarkups PartnerCourierMarkup[]
+  shops          PartnerShop[]
+  orders         Order[]                @relation("PartnerOrders")
+}
+
+model PartnerCourierMarkup {
+  id            String      @id @default(cuid())
+  partnerId     String
+  partner       Partner     @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  courierType   CourierType
+  markupPercent Float       @default(0)
+  isEnabled     Boolean     @default(true)
+
+  @@unique([partnerId, courierType])
+}
+
+model PartnerShop {
+  id             String   @id @default(cuid())
+  partnerId      String
+  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  externalShopId String?
+  name           String
+  phone          String?
+  address        String?
+  lat            Float?
+  lng            Float?
+  balance        Float    @default(0)
+  isActive       Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  orders         Order[]  @relation("PartnerShopOrders")
+
+  @@unique([partnerId, externalShopId])
 }
