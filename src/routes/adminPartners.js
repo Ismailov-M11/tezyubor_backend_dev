@@ -44,7 +44,10 @@ router.get('/:id', async (req, res, next) => {
       where: { id: req.params.id },
       include: {
         courierMarkups: true,
-        shops: { orderBy: { createdAt: 'desc' } },
+        shops: {
+          orderBy: { createdAt: 'desc' },
+          include: { pharmacy: { select: { id: true, name: true, login: true, phone: true, address: true, city: true, district: true, isActive: true } } },
+        },
         _count: { select: { orders: true } },
       },
     })
@@ -245,6 +248,70 @@ router.put('/:id/shops/:shopId/balance', superAdminOnly, async (req, res, next) 
 router.delete('/:id/shops/:shopId', superAdminOnly, async (req, res, next) => {
   try {
     await prisma.partnerShop.delete({ where: { id: req.params.shopId } })
+    res.json({ success: true })
+  } catch (err) { next(err) }
+})
+
+// GET /api/admin/partners/:id/available-pharmacies — аптеки, не привязанные ни к одному партнёру
+router.get('/:id/available-pharmacies', async (req, res, next) => {
+  try {
+    const { search } = req.query
+    const where = {
+      partnerShop: null,
+      isActive: true,
+    }
+    if (search?.trim()) {
+      where.OR = [
+        { name: { contains: search.trim(), mode: 'insensitive' } },
+        { login: { contains: search.trim(), mode: 'insensitive' } },
+      ]
+    }
+    const pharmacies = await prisma.pharmacy.findMany({
+      where,
+      select: { id: true, name: true, login: true, phone: true, address: true, city: true, district: true, lat: true, lng: true, isActive: true },
+      orderBy: { name: 'asc' },
+      take: 100,
+    })
+    res.json({ success: true, data: { pharmacies } })
+  } catch (err) { next(err) }
+})
+
+// POST /api/admin/partners/:id/assign/:pharmacyId — привязать аптеку к партнёру
+router.post('/:id/assign/:pharmacyId', async (req, res, next) => {
+  try {
+    const partner = await prisma.partner.findUnique({ where: { id: req.params.id } })
+    if (!partner) return res.status(404).json({ success: false, message: 'Partner not found' })
+
+    const pharmacy = await prisma.pharmacy.findUnique({ where: { id: req.params.pharmacyId } })
+    if (!pharmacy) return res.status(404).json({ success: false, message: 'Pharmacy not found' })
+
+    const existing = await prisma.partnerShop.findUnique({ where: { pharmacyId: req.params.pharmacyId } })
+    if (existing) return res.status(409).json({ success: false, message: 'Pharmacy already assigned to a partner' })
+
+    const shop = await prisma.partnerShop.create({
+      data: {
+        partnerId: req.params.id,
+        pharmacyId: req.params.pharmacyId,
+        name: pharmacy.name,
+        phone: pharmacy.phone || null,
+        address: pharmacy.address || null,
+        lat: pharmacy.lat || null,
+        lng: pharmacy.lng || null,
+      },
+      include: { pharmacy: { select: { id: true, name: true, login: true, phone: true, address: true, city: true, district: true, isActive: true } } },
+    })
+    res.status(201).json({ success: true, data: shop })
+  } catch (err) { next(err) }
+})
+
+// DELETE /api/admin/partners/:id/assign/:pharmacyId — отвязать аптеку от партнёра
+router.delete('/:id/assign/:pharmacyId', async (req, res, next) => {
+  try {
+    const shop = await prisma.partnerShop.findUnique({ where: { pharmacyId: req.params.pharmacyId } })
+    if (!shop || shop.partnerId !== req.params.id) {
+      return res.status(404).json({ success: false, message: 'Assignment not found' })
+    }
+    await prisma.partnerShop.delete({ where: { id: shop.id } })
     res.json({ success: true })
   } catch (err) { next(err) }
 })

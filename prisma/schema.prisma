@@ -82,6 +82,7 @@ model Pharmacy {
   createdAt            DateTime              @default(now())
   orders               Order[]
   subscriptionPayments SubscriptionPayment[]
+  partnerShop          PartnerShop?          @relation("PharmacyPartnerShop")
 }
 
 model SubscriptionPayment {
@@ -201,21 +202,23 @@ model PartnerCourierMarkup {
 }
 
 model PartnerShop {
-  id             String   @id @default(cuid())
+  id             String    @id @default(cuid())
   partnerId      String
-  partner        Partner  @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  partner        Partner   @relation(fields: [partnerId], references: [id], onDelete: Cascade)
+  pharmacyId     String?   @unique
+  pharmacy       Pharmacy? @relation("PharmacyPartnerShop", fields: [pharmacyId], references: [id], onDelete: SetNull)
   externalShopId String?
   name           String
   phone          String?
   address        String?
   lat            Float?
   lng            Float?
-  balance        Float    @default(0)
-  isActive       Boolean  @default(true)
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  balance        Float     @default(0)
+  isActive       Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
-  orders         Order[]  @relation("PartnerShopOrders")
+  orders         Order[]   @relation("PartnerShopOrders")
 
   @@unique([partnerId, externalShopId])
 }

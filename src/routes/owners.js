@@ -42,12 +42,28 @@ router.get('/', auth, requireRole('admin'), async (req, res, next) => {
         }
       : {}
 
-    const owners = await prisma.owner.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      select: { ...OWNER_SELECT, pharmacies: { select: PHARMACY_SELECT } },
-    })
-    res.json({ success: true, data: { owners, total: owners.length } })
+    const [owners, partners] = await Promise.all([
+      prisma.owner.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        select: { ...OWNER_SELECT, pharmacies: { select: PHARMACY_SELECT } },
+      }),
+      prisma.partner.findMany({
+        where: search
+          ? { OR: [{ name: { contains: search, mode: 'insensitive' } }, { phone: { contains: search, mode: 'insensitive' } }] }
+          : {},
+        orderBy: { createdAt: 'desc' },
+        select: {
+          id: true, name: true, phone: true, type: true, isActive: true, createdAt: true,
+          shops: {
+            where: { pharmacyId: { not: null } },
+            include: { pharmacy: { select: PHARMACY_SELECT } },
+          },
+        },
+      }),
+    ])
+    // Партнёры отдаём как отдельный список — фронт решает как их показать
+    res.json({ success: true, data: { owners, partners, total: owners.length + partners.length } })
   } catch (err) {
     next(err)
   }

@@ -252,7 +252,14 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
 
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true, address: true, phone: true, name: true, noorPaymentType: true, balance: true } } },
+      include: {
+        pharmacy: {
+          select: { lat: true, lng: true, address: true, phone: true, name: true, noorPaymentType: true, balance: true },
+          include: {
+            partnerShop: { include: { partner: true } },
+          },
+        },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (order.pharmacyId !== req.user.id) return res.status(403).json({ success: false, message: 'Forbidden' })
@@ -278,9 +285,38 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
           return res.status(400).json({ success: false, message: NOOR_ERRORS[stage] || `Noor: ошибка (stage ${stage})` })
         }
 
-        const noorPmtType = order.pharmacy.noorPaymentType || 'CASH'
+        const partnerShop = order.pharmacy.partnerShop
+        let noorPmtType = order.pharmacy.noorPaymentType || 'CASH'
 
-        if (noorPmtType === 'BALANCE') {
+        if (partnerShop) {
+          // Аптека привязана к партнёру — списываем с баланса партнёра/магазина
+          const deliveryCost = order.deliveryPrice || 0
+          noorPmtType = 'BALANCE'
+          orderPaymentType = 'BALANCE'
+
+          if (partnerShop.partner.type === 'MARKETPLACE') {
+            if (partnerShop.partner.balance < deliveryCost) {
+              return res.status(400).json({ success: false, message: 'Недостаточно средств на балансе партнёра' })
+            }
+            await prisma.partner.update({
+              where: { id: partnerShop.partnerId },
+              data: { balance: { decrement: deliveryCost } },
+            })
+          } else {
+            if (partnerShop.balance < deliveryCost) {
+              return res.status(400).json({ success: false, message: 'Недостаточно средств на балансе магазина партнёра' })
+            }
+            await prisma.partnerShop.update({
+              where: { id: partnerShop.id },
+              data: { balance: { decrement: deliveryCost } },
+            })
+          }
+          // Привязываем заказ к партнёру
+          await prisma.order.update({
+            where: { token: req.params.token },
+            data: { partnerId: partnerShop.partnerId, partnerShopId: partnerShop.id },
+          })
+        } else if (noorPmtType === 'BALANCE') {
           const deliveryCost = order.deliveryPrice || 0
           if (order.pharmacy.balance < deliveryCost) {
             return res.status(400).json({ success: false, message: 'Недостаточно средств на балансе для создания заказа' })
@@ -328,11 +364,19 @@ router.put('/orders/:token/cancel', async (req, res, next) => {
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (order.pharmacyId !== req.user.id) return res.status(403).json({ success: false, message: 'Forbidden' })
 
-    if (order.paymentType === 'BALANCE' && order.selectedCourier === 'noor' && order.deliveryPrice) {
-      await prisma.pharmacy.update({
-        where: { id: order.pharmacyId },
-        data: { balance: { increment: order.deliveryPrice } },
-      })
+    if (order.paymentType === 'BALANCE' && order.deliveryPrice) {
+      if (order.partnerShopId) {
+        const shop = await prisma.partnerShop.findUnique({ where: { id: order.partnerShopId }, include: { partner: true } })
+        if (shop?.partner.type === 'MARKETPLACE') {
+          await prisma.partner.update({ where: { id: shop.partnerId }, data: { balance: { increment: order.deliveryPrice } } })
+        } else if (shop) {
+          await prisma.partnerShop.update({ where: { id: shop.id }, data: { balance: { increment: order.deliveryPrice } } })
+        }
+      } else if (order.partnerId) {
+        await prisma.partner.update({ where: { id: order.partnerId }, data: { balance: { increment: order.deliveryPrice } } })
+      } else if (order.selectedCourier === 'noor' && order.pharmacyId) {
+        await prisma.pharmacy.update({ where: { id: order.pharmacyId }, data: { balance: { increment: order.deliveryPrice } } })
+      }
     }
 
     const updated = await prisma.order.update({
