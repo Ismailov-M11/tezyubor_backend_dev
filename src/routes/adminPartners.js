@@ -179,6 +179,7 @@ router.get('/:id/shops', async (req, res, next) => {
     const shops = await prisma.partnerShop.findMany({
       where: { partnerId: req.params.id },
       orderBy: { createdAt: 'desc' },
+      include: { pharmacy: { select: { id: true, name: true, login: true, phone: true, address: true, city: true, district: true, isActive: true } } },
     })
     res.json({ success: true, data: { shops } })
   } catch (err) { next(err) }
@@ -207,7 +208,7 @@ router.post('/:id/shops', async (req, res, next) => {
 // PUT /api/admin/partners/:id/shops/:shopId
 router.put('/:id/shops/:shopId', async (req, res, next) => {
   try {
-    const { name, phone, address, lat, lng, isActive } = req.body
+    const { name, phone, address, lat, lng, isActive, externalShopId } = req.body
     const data = {}
     if (name !== undefined) data.name = name
     if (phone !== undefined) data.phone = phone || null
@@ -215,9 +216,11 @@ router.put('/:id/shops/:shopId', async (req, res, next) => {
     if (lat !== undefined) data.lat = lat ? Number(lat) : null
     if (lng !== undefined) data.lng = lng ? Number(lng) : null
     if (isActive !== undefined) data.isActive = Boolean(isActive)
+    if (externalShopId !== undefined) data.externalShopId = externalShopId || null
     const shop = await prisma.partnerShop.update({
       where: { id: req.params.shopId },
       data,
+      include: { pharmacy: { select: { id: true, name: true, login: true, phone: true, address: true, city: true, district: true, isActive: true } } },
     })
     res.json({ success: true, data: shop })
   } catch (err) { next(err) }
@@ -288,6 +291,7 @@ router.post('/:id/assign/:pharmacyId', async (req, res, next) => {
     const existing = await prisma.partnerShop.findUnique({ where: { pharmacyId: req.params.pharmacyId } })
     if (existing) return res.status(409).json({ success: false, message: 'Pharmacy already assigned to a partner' })
 
+    const externalShopId = crypto.randomBytes(6).toString('hex')
     const shop = await prisma.partnerShop.create({
       data: {
         partnerId: req.params.id,
@@ -297,6 +301,7 @@ router.post('/:id/assign/:pharmacyId', async (req, res, next) => {
         address: pharmacy.address || null,
         lat: pharmacy.lat || null,
         lng: pharmacy.lng || null,
+        externalShopId,
       },
       include: { pharmacy: { select: { id: true, name: true, login: true, phone: true, address: true, city: true, district: true, isActive: true } } },
     })
