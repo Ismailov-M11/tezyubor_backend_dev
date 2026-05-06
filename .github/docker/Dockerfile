@@ -1,5 +1,5 @@
 # ---------- BUILD STAGE ----------
-FROM node:20-alpine AS builder
+FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
@@ -15,7 +15,7 @@ COPY . .
 RUN npx prisma generate
 
 # ---------- RUNTIME STAGE ----------
-FROM node:20-alpine
+FROM node:20-bookworm-slim
 
 WORKDIR /app
 
