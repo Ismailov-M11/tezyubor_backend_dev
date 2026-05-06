@@ -3,6 +3,8 @@ const express = require('express')
 const cors = require('cors')
 const helmet = require('helmet')
 const morgan = require('morgan')
+const swaggerUi = require('swagger-ui-express')
+const swaggerSpec = require('./src/swagger')
 const prisma = require('./src/config/db')
 const { deactivateExpiredPharmacies } = require('./src/utils/subscriptionCheck')
 const { seedAdmin } = require('./src/utils/seedAdmin')
@@ -67,6 +69,7 @@ app.use('/api/admin/partners', adminPartnersRoutes)
 app.use('/api/owner', ownerAppRoutes)
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
+app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Tezyubor API' }))
 
 // Error handler
 app.use((err, req, res, _next) => {
