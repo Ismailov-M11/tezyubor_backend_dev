@@ -7,7 +7,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma
 
-RUN npm ci
+RUN npm i
 
 COPY . .
 
@@ -22,7 +22,7 @@ WORKDIR /app
 COPY package*.json ./
 COPY prisma ./prisma
 
-RUN npm ci --omit=dev
+RUN npm i --omit=dev
 
 COPY --from=builder /app ./
 
