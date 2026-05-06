@@ -3,6 +3,8 @@ FROM node:20-bookworm-slim AS builder
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y openssl
+
 # Copy package + prisma schema FIRST
 COPY package*.json ./
 COPY prisma ./prisma
@@ -19,6 +21,8 @@ FROM node:20-bookworm-slim
 
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y openssl
+
 COPY package*.json ./
 COPY prisma ./prisma
 
@@ -28,7 +32,8 @@ COPY --from=builder /app ./
 
 ENV NODE_ENV=production
 
-RUN addgroup -S app && adduser -S app -G app
+RUN groupadd -r app && useradd -r -g app app
+
 USER app
 
 EXPOSE 3000
