@@ -1,0 +1,7 @@
+.env.example
+.git
+.github
+.gitignore
+.idea
+CHANGES_TO_EXISTING_SYSTEMS.md
+PYTHON_BACKEND_SPEC.md

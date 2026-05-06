@@ -1,0 +1,119 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [main, dev]
+
+permissions:
+  contents: read
+  id-token: write
+  packages: write
+
+env:
+  SERVICE_NAME: backend
+  ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || github.ref_name }}
+
+jobs:
+  build-and-deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get Vault token (OIDC)
+        uses: hashicorp/vault-action@v3
+        with:
+          url: ${{ secrets.VAULT_ADDR }}
+          method: jwt
+          role: ${{ secrets.VAULT_ROLE }}
+          exportToken: true
+
+      - name: Fetch all variables from Vault
+        run: |
+          fetch() {
+            curl -sf \
+              -H "X-Vault-Token: ${VAULT_TOKEN}" \
+              "${{ secrets.VAULT_ADDR }}/v1/kv/data/$1" \
+            | jq -r '
+              .data.data
+              | to_entries[]
+              | if (.value | type == "string" and contains("\n"))
+                then "\(.key)<<EOF\n\(.value)\nEOF"
+                else "\(.key)=\(.value)"
+                end
+            '
+          }
+
+          fetch "tezyubor/${{ env.ENVIRONMENT }}/shared/db" >> $GITHUB_ENV
+          fetch "tezyubor/${{ env.ENVIRONMENT }}/shared/vps" >> $GITHUB_ENV
+          fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" > .env
+          
+          while IFS='=' read -r key value; do
+            echo "${key}=${value}" >> $GITHUB_ENV
+          done < .env
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push image
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          push: true
+          file: .github/docker/Dockerfile
+          tags: ghcr.io/${{ github.repository }}:${{ env.ENVIRONMENT }}-latest
+
+      - name: Setup SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${VPS_SSH_KEY}" | tr -d '\r' > ~/.ssh/id_rsa
+          chmod 600 ~/.ssh/id_rsa
+          ssh-keyscan -H ${VPS_HOST} >> ~/.ssh/known_hosts
+
+      - name: Deploy docker image
+        run: |
+          echo "DATABASE_URL=postgresql://${DB_USER}:${DB_PASS}@${DB_HOST}:${DB_PORT}/${DB_NAME}" >> .env
+          
+          rsync -azP --delete \
+            .env \
+            ${VPS_USER}@${VPS_HOST}:${SERVICE_HOME}/conf/
+
+          ssh ${VPS_USER}@${VPS_HOST} bash -s \
+            "${SERVICE_HOME}" "${SERVICE_NAME}" "${SERVICE_PORT}" \
+            "${{ github.repository }}" "${{ env.ENVIRONMENT }}" \
+            "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" <<'EOF'
+            set -e
+            SERVICE_HOME="$1"
+            SERVICE_NAME="$2"
+            SERVICE_PORT="$3"
+            REPOSITORY="$4"
+            ENVIRONMENT="$5"
+            GH_ACTOR="$6"
+            GH_TOKEN="$7"
+          
+            echo "${GH_TOKEN}" | docker login ghcr.io -u "${GH_ACTOR}" --password-stdin
+          
+            docker pull ghcr.io/${REPOSITORY}:${ENVIRONMENT}-latest
+          
+            docker rm -f ${SERVICE_NAME} || true
+          
+            docker run -d \
+              --name ${SERVICE_NAME} \
+              --restart=always \
+              -p ${SERVICE_PORT}:3000 \
+              --env-file ${SERVICE_HOME}/conf/.env \
+              --network bridge \
+              --add-host=host.docker.internal:host-gateway \
+              ghcr.io/${REPOSITORY}:${ENVIRONMENT}-latest
+          
+            docker logout
+          
+            echo "Deployed → ghcr.io/${REPOSITORY}:${ENVIRONMENT}-latest"
+          EOF
+      - name: Cleanup
+        if: always()
+        run: rm -f ~/.ssh/id_rsa .env
