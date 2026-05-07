@@ -222,8 +222,9 @@ router.post('/orders', async (req, res, next) => {
         customerName: customerName || null,
       },
     })
+    const pharmacyForLog = await prisma.pharmacy.findUnique({ where: { id: req.user.id }, select: { name: true } })
     await prisma.orderStatusLog.create({
-      data: { orderId: order.id, status: 'pending', actor: 'pharmacy' },
+      data: { orderId: order.id, status: 'pending', actor: 'pharmacy', actorName: pharmacyForLog?.name || null },
     })
 
     const baseUrl = process.env.CLIENT_URL || 'https://tezyubor.uz'
@@ -231,11 +232,7 @@ router.post('/orders', async (req, res, next) => {
 
     if (cleanPhone) {
       const { sendSms } = require('../utils/eskizApi')
-      const pharmacy = await prisma.pharmacy.findUnique({
-        where: { id: req.user.id },
-        select: { name: true },
-      })
-      const message = `${pharmacy.name}\nSsylka dlya zakaza / Buyurtma havolasi:\n${orderUrl}`
+      const message = `${pharmacyForLog.name}\nSsylka dlya zakaza / Buyurtma havolasi:\n${orderUrl}`
       sendSms(cleanPhone, message)
         .then(() => console.log(`[eskiz] SMS dispatched for order ${token}`))
         .catch((err) => console.error(`[eskiz] SMS error for order ${token}:`, err.message))
@@ -356,7 +353,7 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
       data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, trackingUrl, paymentType: orderPaymentType },
     })
     await prisma.orderStatusLog.create({
-      data: { orderId: order.id, status: 'confirmed', actor: 'pharmacy' },
+      data: { orderId: order.id, status: 'confirmed', actor: 'pharmacy', actorName: order.pharmacy.name || null },
     })
     res.json({ success: true, data: updated })
   } catch (err) {
@@ -390,8 +387,9 @@ router.put('/orders/:token/cancel', async (req, res, next) => {
       where: { token: req.params.token },
       data: { status: 'cancelled' },
     })
+    const pharmacyForCancel = await prisma.pharmacy.findUnique({ where: { id: order.pharmacyId }, select: { name: true } })
     await prisma.orderStatusLog.create({
-      data: { orderId: order.id, status: 'cancelled', actor: 'pharmacy' },
+      data: { orderId: order.id, status: 'cancelled', actor: 'pharmacy', actorName: pharmacyForCancel?.name || null },
     })
     res.json({ success: true, data: updated })
   } catch (err) {

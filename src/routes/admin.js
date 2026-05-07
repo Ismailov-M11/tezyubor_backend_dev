@@ -152,7 +152,7 @@ router.post('/orders', requirePermission('orders:create'), async (req, res, next
       },
     })
     await prisma.orderStatusLog.create({
-      data: { orderId: order.id, status: 'pending', actor: 'admin' },
+      data: { orderId: order.id, status: 'pending', actor: 'admin', actorName: pharmacy.name || null },
     })
 
     const baseUrl = process.env.CLIENT_URL || 'https://tezyubor.uz'
