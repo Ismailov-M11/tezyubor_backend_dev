@@ -100,6 +100,27 @@ Authorization: Bearer <token>
           isActive: { type: 'boolean' }, createdAt: { type: 'string', format: 'date-time' },
         },
       },
+      OrderStatusLog: {
+        type: 'object',
+        properties: {
+          id: { type: 'string' },
+          orderId: { type: 'string' },
+          status: { type: 'string', enum: ['pending', 'awaiting_confirmation', 'confirmed', 'courier_pickup', 'courier_picked', 'courier_delivery', 'delivered', 'cancelled'] },
+          source: { type: 'string', enum: ['noor', 'millennium', 'mytaxi', 'yandex'], nullable: true },
+          actor: { type: 'string', example: 'pharmacy', nullable: true, description: 'Кто совершил действие: pharmacy, customer, admin, noor, millennium, mytaxi, yandex' },
+          actorName: { type: 'string', nullable: true, description: 'Название аптеки, имя клиента или ФИО курьера' },
+          actorPhone: { type: 'string', nullable: true, description: 'Телефон курьера (только для courier_* статусов от Noor)' },
+          rawStatus: { type: 'string', nullable: true, description: 'Оригинальный статус от курьерского сервиса (stage, state_id и т.д.)' },
+          createdAt: { type: 'string', format: 'date-time' },
+        },
+      },
+      OrderCheck: {
+        type: 'object',
+        properties: {
+          token: { type: 'string', example: 'ORD1234567' },
+          status: { type: 'string', enum: ['pending', 'awaiting_confirmation', 'confirmed', 'courier_pickup', 'courier_picked', 'courier_delivery', 'delivered', 'cancelled'] },
+        },
+      },
     },
   },
   security: [{ BearerAuth: [] }],
@@ -267,11 +288,35 @@ Authorization: Bearer <token>
     // ORDERS (PUBLIC — для клиента)
     // ══════════════════════════════════════════════════════════════════════
 
+    '/api/orders/{token}/check': {
+      get: {
+        tags: ['Orders (Public)'],
+        summary: 'Предварительная проверка статуса заказа (лёгкий polling)',
+        description: 'Возвращает только token и status. Всегда доступен, в т.ч. для отменённых/доставленных заказов. Используется для периодического polling вместо полного GET.',
+        security: [],
+        parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string', example: 'ORD1234567' } }],
+        responses: {
+          200: {
+            description: 'Статус заказа',
+            content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean', example: true }, data: { $ref: '#/components/schemas/OrderCheck' } } } } },
+          },
+          404: { description: 'Заказ не найден' },
+        },
+      },
+    },
+
     '/api/orders/{token}': {
       get: {
-        tags: ['Orders (Public)'], summary: 'Получить заказ по токену', security: [],
+        tags: ['Orders (Public)'],
+        summary: 'Получить полные данные заказа',
+        description: '⚠️ Возвращает **403** если заказ уже отменён или доставлен. Для проверки статуса используйте `/check`.',
+        security: [],
         parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string', example: 'ORD1234567' } }],
-        responses: { 200: { description: 'Данные заказа + аптеки' }, 404: { description: 'Не найден' } },
+        responses: {
+          200: { description: 'Данные заказа + аптеки' },
+          403: { description: 'Заказ закрыт (cancelled или delivered) — доступ запрещён' },
+          404: { description: 'Не найден' },
+        },
       },
     },
 
@@ -325,17 +370,31 @@ Authorization: Bearer <token>
 
     '/api/orders/{token}/status-logs': {
       get: {
-        tags: ['Orders (Public)'], summary: 'История смены статусов заказа', security: [],
+        tags: ['Orders (Public)'],
+        summary: 'История статусов заказа',
+        description: 'Возвращает все записи смены статуса в хронологическом порядке. Каждая запись содержит кто совершил действие (`actor`, `actorName`) и, для курьерских статусов, ФИО и телефон курьера (`actorName`, `actorPhone`).',
+        security: [],
         parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Массив логов' } },
+        responses: {
+          200: {
+            description: 'Массив логов',
+            content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean' }, data: { type: 'object', properties: { logs: { type: 'array', items: { $ref: '#/components/schemas/OrderStatusLog' } } } } } } } },
+          },
+        },
       },
     },
 
     '/api/orders/{token}/saved-addresses': {
       get: {
-        tags: ['Orders (Public)'], summary: 'Сохранённые адреса клиента для данной аптеки', security: [],
+        tags: ['Orders (Public)'],
+        summary: 'Сохранённые адреса клиента для данной аптеки',
+        description: '⚠️ Доступен **только** пока заказ в статусе `pending`. Возвращает **403** для всех остальных статусов.',
+        security: [],
         parameters: [{ name: 'token', in: 'path', required: true, schema: { type: 'string' } }],
-        responses: { 200: { description: 'Массив адресов с деталями квартиры' } },
+        responses: {
+          200: { description: 'Массив адресов с деталями квартиры' },
+          403: { description: 'Заказ не в статусе pending' },
+        },
       },
     },
 
