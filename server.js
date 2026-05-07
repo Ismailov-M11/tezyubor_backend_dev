@@ -31,6 +31,7 @@ const ALLOWED_ORIGINS = [
   'https://www.tezyubor.uz',
   'https://app.tezyubor.uz',
   'https://admin.tezyubor.uz',
+  'https://api.tezyubor.uz',
   'http://localhost:5173',
 ].filter(Boolean)
 
