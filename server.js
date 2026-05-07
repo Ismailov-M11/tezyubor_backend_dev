@@ -69,7 +69,7 @@ app.use('/api/admin/partners', adminPartnersRoutes)
 app.use('/api/owner', ownerAppRoutes)
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
-app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Tezyubor API' }))
+app.use('/backend-api', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Tezyubor Backend API' }))
 
 // Error handler
 app.use((err, req, res, _next) => {
