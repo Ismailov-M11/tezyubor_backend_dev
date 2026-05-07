@@ -99,8 +99,13 @@ router.post('/webhook', async (req, res) => {
     }
 
     if (newStatus) {
+      const courier = noorOrder?.courier
+      const actorName = courier
+        ? [courier.last_name, courier.first_name, courier.middle_name].filter(Boolean).join(' ')
+        : null
+      const actorPhone = courier?.phone || null
       await prisma.orderStatusLog.create({
-        data: { orderId: order.id, status: newStatus, source: 'noor', rawStatus: String(stage) },
+        data: { orderId: order.id, status: newStatus, source: 'noor', actor: 'noor', rawStatus: String(stage), actorName, actorPhone },
       })
     }
 

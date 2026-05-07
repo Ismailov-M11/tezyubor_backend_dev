@@ -139,13 +139,16 @@ model Order {
 }
 
 model OrderStatusLog {
-  id        String      @id @default(cuid())
-  orderId   String
-  order     Order       @relation(fields: [orderId], references: [id], onDelete: Cascade)
-  status    OrderStatus
-  source    CourierType
-  rawStatus String?
-  createdAt DateTime    @default(now())
+  id          String       @id @default(cuid())
+  orderId     String
+  order       Order        @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  status      OrderStatus
+  source      CourierType?
+  actor       String?
+  actorName   String?
+  actorPhone  String?
+  rawStatus   String?
+  createdAt   DateTime     @default(now())
 }
 
 enum OrderStatus {

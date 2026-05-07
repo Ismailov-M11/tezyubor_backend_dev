@@ -296,6 +296,9 @@ router.put('/:token/courier', async (req, res, next) => {
         status: 'awaiting_confirmation',
       },
     })
+    await prisma.orderStatusLog.create({
+      data: { orderId: order.id, status: 'awaiting_confirmation', actor: 'customer' },
+    })
     res.json({ success: true, data: updated })
   } catch (err) {
     next(err)

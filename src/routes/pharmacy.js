@@ -222,6 +222,10 @@ router.post('/orders', async (req, res, next) => {
         customerName: customerName || null,
       },
     })
+    await prisma.orderStatusLog.create({
+      data: { orderId: order.id, status: 'pending', actor: 'pharmacy' },
+    })
+
     const baseUrl = process.env.CLIENT_URL || 'https://tezyubor.uz'
     const orderUrl = `${baseUrl}/order/${token}`
 
@@ -351,6 +355,9 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
       where: { token: req.params.token },
       data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, trackingUrl, paymentType: orderPaymentType },
     })
+    await prisma.orderStatusLog.create({
+      data: { orderId: order.id, status: 'confirmed', actor: 'pharmacy' },
+    })
     res.json({ success: true, data: updated })
   } catch (err) {
     next(err)
@@ -382,6 +389,9 @@ router.put('/orders/:token/cancel', async (req, res, next) => {
     const updated = await prisma.order.update({
       where: { token: req.params.token },
       data: { status: 'cancelled' },
+    })
+    await prisma.orderStatusLog.create({
+      data: { orderId: order.id, status: 'cancelled', actor: 'pharmacy' },
     })
     res.json({ success: true, data: updated })
   } catch (err) {
