@@ -18,6 +18,7 @@ router.get('/:token/saved-addresses', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({ where: { token: req.params.token } })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+    if (order.status !== 'pending') return res.status(403).json({ success: false, message: 'Forbidden' })
     if (!order.customerPhone) return res.json({ success: true, data: { addresses: [] } })
 
     // Build phone variants to handle both +998... and 998... stored formats
