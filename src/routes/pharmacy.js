@@ -254,8 +254,8 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
       where: { token: req.params.token },
       include: {
         pharmacy: {
-          select: { lat: true, lng: true, address: true, phone: true, name: true, noorPaymentType: true, balance: true },
-          include: {
+          select: {
+            lat: true, lng: true, address: true, phone: true, name: true, noorPaymentType: true, balance: true,
             partnerShop: { include: { partner: true } },
           },
         },
