@@ -68,7 +68,21 @@ router.get('/:token/saved-addresses', async (req, res, next) => {
   }
 })
 
-// GET /api/orders/:token — public
+// GET /api/orders/:token/check — lightweight status check, always accessible
+router.get('/:token/check', async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { token: req.params.token },
+      select: { token: true, status: true },
+    })
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+    res.json({ success: true, data: { token: order.token, status: order.status } })
+  } catch (err) {
+    next(err)
+  }
+})
+
+// GET /api/orders/:token — public, blocked for terminal orders
 router.get('/:token', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
@@ -82,7 +96,9 @@ router.get('/:token', async (req, res, next) => {
     if (!order) {
       return res.status(404).json({ success: false, message: 'Order not found' })
     }
-    // Flatten pharmacy coords onto order for frontend convenience
+    if (order.status === 'cancelled' || order.status === 'delivered') {
+      return res.status(403).json({ success: false, message: 'Order is closed' })
+    }
     const response = {
       ...order,
       pharmacyName: order.pharmacy.name,
