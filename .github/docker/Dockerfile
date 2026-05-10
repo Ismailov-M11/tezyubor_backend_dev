@@ -36,6 +36,6 @@ RUN groupadd -r app && useradd -r -g app app
 
 USER app
 
-EXPOSE 3000
+EXPOSE 5000
 
 CMD ["node", "server.js"]
