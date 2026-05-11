@@ -122,6 +122,12 @@ model Order {
   customerLat     Float?
   customerLng     Float?
 
+  senderName      String?
+  senderPhone     String?
+  senderAddress   String?
+  senderLat       Float?
+  senderLng       Float?
+
   selectedCourier CourierType?
   deliveryPrice   Float?
   trackingUrl     String?
