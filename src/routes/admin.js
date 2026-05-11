@@ -112,7 +112,7 @@ router.get('/orders', requirePermission('orders:view'), async (req, res, next) =
         orderBy: { createdAt: 'desc' },
         include: {
           pharmacy: { select: { name: true, address: true, lat: true, lng: true, phone: true } },
-          partner: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
+          partner: { select: { name: true, type: true, phone: true, address: true, lat: true, lng: true } },
           partnerShop: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
         }
       }),
@@ -131,6 +131,7 @@ router.get('/orders', requirePermission('orders:view'), async (req, res, next) =
       senderLat: pharmacy?.lat ?? partnerShop?.lat ?? partner?.lat ?? null,
       senderLng: pharmacy?.lng ?? partnerShop?.lng ?? partner?.lng ?? null,
       partnerName: partner?.name ?? null,
+      partnerType: partner?.type ?? null,
       partnerShopName: partnerShop?.name ?? null,
     }))
     res.json({

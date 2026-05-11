@@ -89,7 +89,7 @@ router.get('/:token', async (req, res, next) => {
       where: { token: req.params.token },
       include: {
         pharmacy: { select: { name: true, address: true, phone: true, lat: true, lng: true, allowedCouriers: true } },
-        partner: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
+        partner: { select: { name: true, type: true, phone: true, address: true, lat: true, lng: true } },
         partnerShop: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
       }
     })
@@ -114,6 +114,7 @@ router.get('/:token', async (req, res, next) => {
       senderLat: pharmacy?.lat ?? partnerShop?.lat ?? partner?.lat ?? null,
       senderLng: pharmacy?.lng ?? partnerShop?.lng ?? partner?.lng ?? null,
       partnerName: partner?.name ?? null,
+      partnerType: partner?.type ?? null,
       partnerShopName: partnerShop?.name ?? null,
     }
     res.json({ success: true, data: response })
