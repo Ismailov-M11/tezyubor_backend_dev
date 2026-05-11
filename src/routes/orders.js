@@ -89,7 +89,7 @@ router.get('/:token', async (req, res, next) => {
       where: { token: req.params.token },
       include: {
         pharmacy: { select: { name: true, address: true, phone: true, lat: true, lng: true, allowedCouriers: true } },
-        partner: { select: { name: true, type: true, phone: true, address: true, lat: true, lng: true } },
+        partner: { select: { name: true, type: true, phone: true, address: true, lat: true, lng: true, courierMarkups: { select: { courierType: true, markupPercent: true, isEnabled: true } } } },
         partnerShop: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
       }
     })
@@ -107,7 +107,9 @@ router.get('/:token', async (req, res, next) => {
       pharmacyPhone: pharmacy?.phone ?? null,
       pharmacyLat: pharmacy?.lat ?? null,
       pharmacyLng: pharmacy?.lng ?? null,
-      pharmacyAllowedCouriers: pharmacy?.allowedCouriers ?? null,
+      pharmacyAllowedCouriers: partner
+        ? (partner.courierMarkups?.filter(m => m.isEnabled).map(m => m.courierType).join(',') || null)
+        : (pharmacy?.allowedCouriers ?? null),
       senderName: order.senderName ?? pharmacy?.name ?? partnerShop?.name ?? partner?.name ?? null,
       senderPhone: order.senderPhone ?? pharmacy?.phone ?? partnerShop?.phone ?? partner?.phone ?? null,
       senderAddress: order.senderAddress ?? pharmacy?.address ?? partnerShop?.address ?? partner?.address ?? null,
@@ -165,7 +167,10 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true, noorPaymentType: true, balance: true } } },
+      include: {
+        pharmacy: { select: { lat: true, lng: true, noorPaymentType: true, balance: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'noor' }, select: { markupPercent: true } } } },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
@@ -193,7 +198,9 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
 
     const stage = result?.evaluated_stage
     let available = stage === 1
-    const price = result?.total_delivery_price ?? null
+    let price = result?.total_delivery_price ?? null
+    const noorMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    if (available && price !== null && noorMarkup > 0) price = Math.round(price * (1 + noorMarkup / 100))
     let errorMessage = available ? null : (NOOR_EVAL_ERRORS[stage] || `Ошибка оценки (stage ${stage})`)
 
     // If pharmacy uses balance — also check price fits in balance
@@ -215,7 +222,10 @@ router.post('/:token/millennium/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true } } },
+      include: {
+        pharmacy: { select: { lat: true, lng: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'millennium' }, select: { markupPercent: true } } } },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
@@ -229,10 +239,13 @@ router.post('/:token/millennium/evaluate', async (req, res, next) => {
 
     console.log(`[Millennium] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
-    const price = await millenniumApi.calcOrderCost(
+    let price = await millenniumApi.calcOrderCost(
       senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
+
+    const millenniumMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    if (millenniumMarkup > 0 && price !== null) price = Math.round(price * (1 + millenniumMarkup / 100))
 
     console.log(`[Millennium] result: available=true, price=${price}`)
 
@@ -248,7 +261,10 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true } } },
+      include: {
+        pharmacy: { select: { lat: true, lng: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'mytaxi' }, select: { markupPercent: true } } } },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
@@ -274,11 +290,16 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
       return res.json({ success: true, data: { available: false, price: null, eta: null, error: 'Доставка недоступна в этом районе' } })
     }
 
+    const mytaxiMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    const mytaxiPrice = mytaxiMarkup > 0
+      ? Math.round(deliveryOffer.total_price * (1 + mytaxiMarkup / 100))
+      : deliveryOffer.total_price
+
     res.json({
       success: true,
       data: {
         available: true,
-        price: deliveryOffer.total_price,
+        price: mytaxiPrice,
         eta: result?.route?.duration ?? null,
         error: null,
       },
