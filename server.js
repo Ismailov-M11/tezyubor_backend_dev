@@ -70,7 +70,11 @@ app.use('/api/admin/partners', adminPartnersRoutes)
 app.use('/api/owner', ownerAppRoutes)
 
 app.get('/health', (req, res) => res.json({ status: 'ok' }))
-app.use('/backend-api', swaggerUi.serve, swaggerUi.setup(swaggerSpec, { customSiteTitle: 'Tezyubor Backend API' }))
+app.get('/backend-api/openapi.json', (req, res) => res.json(swaggerSpec))
+app.use('/backend-api', swaggerUi.serve, swaggerUi.setup(null, {
+  customSiteTitle: 'Tezyubor Backend API',
+  swaggerOptions: { url: '/backend-api/openapi.json' },
+}))
 
 // Error handler
 app.use((err, req, res, _next) => {
