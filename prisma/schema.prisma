@@ -110,6 +110,7 @@ model Order {
   status          OrderStatus @default(pending)
   pharmacyComment String?
   medicinesTotal  Float    @default(0)
+  goodsComment    String?
 
   customerName    String?
   customerPhone   String?
