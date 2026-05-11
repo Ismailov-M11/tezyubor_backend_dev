@@ -85,28 +85,36 @@ router.get('/:token/check', async (req, res, next) => {
 // GET /api/orders/:token — public, blocked for terminal orders
 router.get('/:token', async (req, res, next) => {
   try {
-    const order = await prisma.order.findUnique({
+    const raw = await prisma.order.findUnique({
       where: { token: req.params.token },
       include: {
-        pharmacy: {
-          select: { name: true, address: true, phone: true, lat: true, lng: true, allowedCouriers: true }
-        }
+        pharmacy: { select: { name: true, address: true, phone: true, lat: true, lng: true, allowedCouriers: true } },
+        partner: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
+        partnerShop: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
       }
     })
-    if (!order) {
+    if (!raw) {
       return res.status(404).json({ success: false, message: 'Order not found' })
     }
-    if (order.status === 'cancelled' || order.status === 'delivered') {
+    if (raw.status === 'cancelled' || raw.status === 'delivered') {
       return res.status(403).json({ success: false, message: 'Order is closed' })
     }
+    const { pharmacy, partner, partnerShop, ...order } = raw
     const response = {
       ...order,
-      pharmacyName: order.pharmacy.name,
-      pharmacyAddress: order.pharmacy.address,
-      pharmacyPhone: order.pharmacy.phone,
-      pharmacyLat: order.pharmacy.lat,
-      pharmacyLng: order.pharmacy.lng,
-      pharmacyAllowedCouriers: order.pharmacy.allowedCouriers,
+      pharmacyName: pharmacy?.name ?? null,
+      pharmacyAddress: pharmacy?.address ?? null,
+      pharmacyPhone: pharmacy?.phone ?? null,
+      pharmacyLat: pharmacy?.lat ?? null,
+      pharmacyLng: pharmacy?.lng ?? null,
+      pharmacyAllowedCouriers: pharmacy?.allowedCouriers ?? null,
+      senderName: pharmacy?.name ?? partnerShop?.name ?? partner?.name ?? null,
+      senderPhone: pharmacy?.phone ?? partnerShop?.phone ?? partner?.phone ?? null,
+      senderAddress: pharmacy?.address ?? partnerShop?.address ?? partner?.address ?? null,
+      senderLat: pharmacy?.lat ?? partnerShop?.lat ?? partner?.lat ?? null,
+      senderLng: pharmacy?.lng ?? partnerShop?.lng ?? partner?.lng ?? null,
+      partnerName: partner?.name ?? null,
+      partnerShopName: partnerShop?.name ?? null,
     }
     res.json({ success: true, data: response })
   } catch (err) {

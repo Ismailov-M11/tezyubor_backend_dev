@@ -110,17 +110,28 @@ router.get('/orders', requirePermission('orders:view'), async (req, res, next) =
         skip,
         take: limit,
         orderBy: { createdAt: 'desc' },
-        include: { pharmacy: { select: { name: true, address: true, lat: true, lng: true, phone: true } } }
+        include: {
+          pharmacy: { select: { name: true, address: true, lat: true, lng: true, phone: true } },
+          partner: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
+          partnerShop: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
+        }
       }),
       prisma.order.count({ where })
     ])
-    const orders = rawOrders.map(({ pharmacy, ...order }) => ({
+    const orders = rawOrders.map(({ pharmacy, partner, partnerShop, ...order }) => ({
       ...order,
       pharmacyName: pharmacy?.name ?? null,
       pharmacyAddress: pharmacy?.address ?? null,
       pharmacyPhone: pharmacy?.phone ?? null,
       pharmacyLat: pharmacy?.lat ?? null,
       pharmacyLng: pharmacy?.lng ?? null,
+      senderName: pharmacy?.name ?? partnerShop?.name ?? partner?.name ?? null,
+      senderPhone: pharmacy?.phone ?? partnerShop?.phone ?? partner?.phone ?? null,
+      senderAddress: pharmacy?.address ?? partnerShop?.address ?? partner?.address ?? null,
+      senderLat: pharmacy?.lat ?? partnerShop?.lat ?? partner?.lat ?? null,
+      senderLng: pharmacy?.lng ?? partnerShop?.lng ?? partner?.lng ?? null,
+      partnerName: partner?.name ?? null,
+      partnerShopName: partnerShop?.name ?? null,
     }))
     res.json({
       success: true,
