@@ -171,19 +171,21 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
     if (!order.customerLat || !order.customerLng) {
       return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
     }
-    if (!order.pharmacy.lat || !order.pharmacy.lng) {
-      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
     }
 
     // If pharmacy uses balance payment — block immediately if balance is zero
-    if (order.pharmacy.noorPaymentType === 'BALANCE' && order.pharmacy.balance <= 0) {
+    if (order.pharmacy?.noorPaymentType === 'BALANCE' && order.pharmacy?.balance <= 0) {
       return res.json({ success: true, data: { available: false, stage: null, price: null, error: 'Недостаточно средств на балансе' } })
     }
 
-    console.log(`[Noor] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+    console.log(`[Noor] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
     const result = await noorApi.evaluate(
-      order.pharmacy.lat, order.pharmacy.lng,
+      senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
 
@@ -195,7 +197,7 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
     let errorMessage = available ? null : (NOOR_EVAL_ERRORS[stage] || `Ошибка оценки (stage ${stage})`)
 
     // If pharmacy uses balance — also check price fits in balance
-    if (available && order.pharmacy.noorPaymentType === 'BALANCE' && price !== null && order.pharmacy.balance < price) {
+    if (available && order.pharmacy?.noorPaymentType === 'BALANCE' && price !== null && order.pharmacy?.balance < price) {
       available = false
       errorMessage = 'Недостаточно средств на балансе'
     }
@@ -219,14 +221,16 @@ router.post('/:token/millennium/evaluate', async (req, res, next) => {
     if (!order.customerLat || !order.customerLng) {
       return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
     }
-    if (!order.pharmacy.lat || !order.pharmacy.lng) {
-      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
     }
 
-    console.log(`[Millennium] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+    console.log(`[Millennium] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
     const price = await millenniumApi.calcOrderCost(
-      order.pharmacy.lat, order.pharmacy.lng,
+      senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
 
@@ -250,14 +254,16 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
     if (!order.customerLat || !order.customerLng) {
       return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
     }
-    if (!order.pharmacy.lat || !order.pharmacy.lng) {
-      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
     }
 
-    console.log(`[MyTaxi] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+    console.log(`[MyTaxi] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
     const result = await mytaxiApi.getOffer(
-      order.pharmacy.lat, order.pharmacy.lng,
+      senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
 
