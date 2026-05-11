@@ -83,7 +83,7 @@ jobs:
             ${VPS_USER}@${VPS_HOST}:${SERVICE_HOME}/conf/
 
           ssh ${VPS_USER}@${VPS_HOST} bash -s \
-            "${SERVICE_HOME}" "${SERVICE_NAME}" "${SERVICE_PORT}" \
+            "${SERVICE_HOME}" "tezyubor-${SERVICE_NAME}" "${SERVICE_PORT}" \
             "${{ github.repository }}" "${{ env.ENVIRONMENT }}" \
             "${{ github.actor }}" "${{ secrets.GITHUB_TOKEN }}" <<'EOF'
             set -e
