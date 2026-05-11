@@ -5,6 +5,8 @@ const noorApi = require('../utils/noorApi')
 const millenniumApi = require('../utils/millenniumApi')
 const mytaxiApi = require('../utils/mytaxiApi')
 
+const roundTo500 = (price) => Math.floor(price / 500 + 0.5) * 500
+
 const NOOR_EVAL_ERRORS = {
   23: 'Недостаточно средств на балансе Noor',
   27: 'Нет свободных курьеров в вашем районе',
@@ -200,7 +202,7 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
     let available = stage === 1
     let price = result?.total_delivery_price ?? null
     const noorMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
-    if (available && price !== null && noorMarkup > 0) price = Math.round(price * (1 + noorMarkup / 100))
+    if (available && price !== null && noorMarkup > 0) price = roundTo500(price * (1 + noorMarkup / 100))
     let errorMessage = available ? null : (NOOR_EVAL_ERRORS[stage] || `Ошибка оценки (stage ${stage})`)
 
     // If pharmacy uses balance — also check price fits in balance
@@ -245,7 +247,7 @@ router.post('/:token/millennium/evaluate', async (req, res, next) => {
     )
 
     const millenniumMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
-    if (millenniumMarkup > 0 && price !== null) price = Math.round(price * (1 + millenniumMarkup / 100))
+    if (millenniumMarkup > 0 && price !== null) price = roundTo500(price * (1 + millenniumMarkup / 100))
 
     console.log(`[Millennium] result: available=true, price=${price}`)
 
@@ -292,7 +294,7 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
 
     const mytaxiMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
     const mytaxiPrice = mytaxiMarkup > 0
-      ? Math.round(deliveryOffer.total_price * (1 + mytaxiMarkup / 100))
+      ? roundTo500(deliveryOffer.total_price * (1 + mytaxiMarkup / 100))
       : deliveryOffer.total_price
 
     res.json({
