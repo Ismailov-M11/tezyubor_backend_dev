@@ -32,6 +32,10 @@ COPY --from=builder /app ./
 
 ENV NODE_ENV=production
 
+LABEL project="tezyubor"
+LABEL service="backend"
+LABEL author="aknbdev@gmail.com"
+
 RUN groupadd -r app && useradd -r -g app app
 
 USER app

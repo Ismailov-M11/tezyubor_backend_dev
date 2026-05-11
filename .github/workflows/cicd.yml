@@ -112,6 +112,13 @@ jobs:
           
             docker logout
           
+            echo "Removing dangling images..."
+            DANGLING_IMAGES=$(docker images --filter "label=project=tezyubor" --filter "label=service=backend" --filter "dangling=true" -q)
+            if [ -n "$DANGLING_IMAGES" ]; then
+              docker rmi $DANGLING_IMAGES
+            else
+              echo "No dangling images found to remove"
+            fi
             echo "Deployed → ghcr.io/${REPOSITORY}:${ENVIRONMENT}-latest"
           EOF
       - name: Cleanup
