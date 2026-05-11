@@ -94,7 +94,7 @@ router.post('/', async (req, res, next) => {
 // PUT /api/admin/partners/:id
 router.put('/:id', async (req, res, next) => {
   try {
-    const { name, phone, address, lat, lng, isActive } = req.body
+    const { name, phone, address, lat, lng, isActive, smsEnabled } = req.body
     const data = {}
     if (name !== undefined) data.name = name
     if (phone !== undefined) data.phone = phone || null
@@ -102,6 +102,7 @@ router.put('/:id', async (req, res, next) => {
     if (lat !== undefined) data.lat = lat ? Number(lat) : null
     if (lng !== undefined) data.lng = lng ? Number(lng) : null
     if (isActive !== undefined) data.isActive = Boolean(isActive)
+    if (smsEnabled !== undefined) data.smsEnabled = Boolean(smsEnabled)
     const partner = await prisma.partner.update({
       where: { id: req.params.id },
       data,
