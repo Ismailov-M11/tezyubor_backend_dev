@@ -27,30 +27,17 @@ jobs:
           method: jwt
           role: ${{ secrets.VAULT_ROLE }}
           exportToken: true
+          secrets: |
+            kv/data/tezyubor/${{ env.ENVIRONMENT }}/shared/db * ;
+            kv/data/tezyubor/${{ env.ENVIRONMENT }}/shared/vps * ;
+            kv/data/tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app * ;
 
-      - name: Fetch all variables from Vault
+      - name: Fetch app variables from Vault
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
         run: |
-          fetch() {
-            curl -sf \
-              -H "X-Vault-Token: ${VAULT_TOKEN}" \
-              "${{ secrets.VAULT_ADDR }}/v1/kv/data/$1" \
-            | jq -r '
-              .data.data
-              | to_entries[]
-              | if (.value | type == "string" and contains("\n"))
-                then "\(.key)<<EOF\n\(.value)\nEOF"
-                else "\(.key)=\(.value)"
-                end
-            '
-          }
-
-          fetch "tezyubor/${{ env.ENVIRONMENT }}/shared/db" >> $GITHUB_ENV
-          fetch "tezyubor/${{ env.ENVIRONMENT }}/shared/vps" >> $GITHUB_ENV
-          fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" > .env
-          
-          while IFS='=' read -r key value; do
-            echo "${key}=${value}" >> $GITHUB_ENV
-          done < .env
+          source .github/scripts/export.sh
+          fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" .env
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
