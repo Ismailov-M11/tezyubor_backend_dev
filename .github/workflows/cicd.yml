@@ -37,6 +37,11 @@ jobs:
         run: |
           source .github/scripts/export.sh
           fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" > .env
+          while IFS='=' read -r key value; do
+            [[ -z "$key" ]] && continue
+            echo "::add-mask::$value"
+            echo "${key}=${value}" >> "$GITHUB_ENV"
+          done < .env
           du -sh .env
           cat .env
 
