@@ -4,15 +4,28 @@ fetch() {
   local path="$1"
   local target="$2"
 
-  curl -sf \
+  : > "$target"
+
+  if [[ "${DEBUG:-false}" == "true" ]]; then
+    echo "[DEBUG] Vault path: $path"
+    echo "[DEBUG] Vault addr: $VAULT_ADDR"
+  fi
+
+  response=$(curl -sS \
     -H "X-Vault-Token: ${VAULT_TOKEN}" \
-    "${VAULT_ADDR}/v1/kv/data/${path}" \
-  | jq -r '
-      .data.data
-      | to_entries[]
-      | "\(.key)\t\(.value)"
-    ' \
-  | while IFS=$'\t' read -r key value; do
-      printf '%s=%s\n' "$key" "$value" >> "$target"
-    done
+    "${VAULT_ADDR}/v1/kv/data/${path}") || {
+      echo "[ERROR] Vault request failed"
+      exit 1
+  }
+
+  if [[ "${DEBUG:-false}" == "true" ]]; then
+    echo "[DEBUG] Raw response:"
+    echo "$response" | jq .
+  fi
+
+  echo "$response" | jq -e -r '
+    .data.data
+    | to_entries[]
+    | "\(.key)=\(.value)"
+  ' >> "$target"
 }
