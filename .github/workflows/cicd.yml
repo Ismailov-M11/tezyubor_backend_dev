@@ -33,6 +33,8 @@ jobs:
             kv/data/tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app * ;
 
       - name: Fetch app variables from Vault
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
         run: |
           source .github/scripts/export.sh
           fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" > .env
