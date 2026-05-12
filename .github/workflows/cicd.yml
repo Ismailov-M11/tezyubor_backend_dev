@@ -20,6 +20,15 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Fetch app variables from Vault
+        env:
+          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
+        run: |
+          source .github/scripts/export.sh
+          fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" > .env
+          du -sh .env
+          cat .env
+
       - name: Get Vault token (OIDC)
         uses: hashicorp/vault-action@v3
         with:
@@ -31,15 +40,6 @@ jobs:
             kv/data/tezyubor/${{ env.ENVIRONMENT }}/shared/db * ;
             kv/data/tezyubor/${{ env.ENVIRONMENT }}/shared/vps * ;
             kv/data/tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app * ;
-
-      - name: Fetch app variables from Vault
-        env:
-          VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
-        run: |
-          source .github/scripts/export.sh
-          fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" > .env
-          du -sh .env
-          cat .env
 
       - name: Log in to GHCR
         uses: docker/login-action@v3
