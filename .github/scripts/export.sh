@@ -11,7 +11,7 @@ fetch() {
     echo "[DEBUG] Vault addr: $VAULT_ADDR"
   fi
 
-  response=$(curl -sS \
+  response=$(curl \
     -H "X-Vault-Token: ${VAULT_TOKEN}" \
     "${VAULT_ADDR}/v1/kv/data/${path}") || {
       echo "[ERROR] Vault request failed"
