@@ -5,6 +5,8 @@ const noorApi = require('../utils/noorApi')
 const millenniumApi = require('../utils/millenniumApi')
 const mytaxiApi = require('../utils/mytaxiApi')
 
+const roundTo500 = (price) => Math.floor(price / 500 + 0.5) * 500
+
 const NOOR_EVAL_ERRORS = {
   23: 'Недостаточно средств на балансе Noor',
   27: 'Нет свободных курьеров в вашем районе',
@@ -89,7 +91,7 @@ router.get('/:token', async (req, res, next) => {
       where: { token: req.params.token },
       include: {
         pharmacy: { select: { name: true, address: true, phone: true, lat: true, lng: true, allowedCouriers: true } },
-        partner: { select: { name: true, type: true, phone: true, address: true, lat: true, lng: true } },
+        partner: { select: { name: true, type: true, phone: true, address: true, lat: true, lng: true, courierMarkups: { select: { courierType: true, markupPercent: true, isEnabled: true } } } },
         partnerShop: { select: { name: true, phone: true, address: true, lat: true, lng: true } },
       }
     })
@@ -107,7 +109,9 @@ router.get('/:token', async (req, res, next) => {
       pharmacyPhone: pharmacy?.phone ?? null,
       pharmacyLat: pharmacy?.lat ?? null,
       pharmacyLng: pharmacy?.lng ?? null,
-      pharmacyAllowedCouriers: pharmacy?.allowedCouriers ?? null,
+      pharmacyAllowedCouriers: partner
+        ? (partner.courierMarkups?.filter(m => m.isEnabled).map(m => m.courierType).join(',') || null)
+        : (pharmacy?.allowedCouriers ?? null),
       senderName: order.senderName ?? pharmacy?.name ?? partnerShop?.name ?? partner?.name ?? null,
       senderPhone: order.senderPhone ?? pharmacy?.phone ?? partnerShop?.phone ?? partner?.phone ?? null,
       senderAddress: order.senderAddress ?? pharmacy?.address ?? partnerShop?.address ?? partner?.address ?? null,
@@ -165,25 +169,30 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true, noorPaymentType: true, balance: true } } },
+      include: {
+        pharmacy: { select: { lat: true, lng: true, noorPaymentType: true, balance: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'noor' }, select: { markupPercent: true } } } },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
       return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
     }
-    if (!order.pharmacy.lat || !order.pharmacy.lng) {
-      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
     }
 
     // If pharmacy uses balance payment — block immediately if balance is zero
-    if (order.pharmacy.noorPaymentType === 'BALANCE' && order.pharmacy.balance <= 0) {
+    if (order.pharmacy?.noorPaymentType === 'BALANCE' && order.pharmacy?.balance <= 0) {
       return res.json({ success: true, data: { available: false, stage: null, price: null, error: 'Недостаточно средств на балансе' } })
     }
 
-    console.log(`[Noor] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+    console.log(`[Noor] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
     const result = await noorApi.evaluate(
-      order.pharmacy.lat, order.pharmacy.lng,
+      senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
 
@@ -191,11 +200,13 @@ router.post('/:token/noor/evaluate', async (req, res, next) => {
 
     const stage = result?.evaluated_stage
     let available = stage === 1
-    const price = result?.total_delivery_price ?? null
+    let price = result?.total_delivery_price ?? null
+    const noorMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    if (available && price !== null && noorMarkup > 0) price = roundTo500(price * (1 + noorMarkup / 100))
     let errorMessage = available ? null : (NOOR_EVAL_ERRORS[stage] || `Ошибка оценки (stage ${stage})`)
 
     // If pharmacy uses balance — also check price fits in balance
-    if (available && order.pharmacy.noorPaymentType === 'BALANCE' && price !== null && order.pharmacy.balance < price) {
+    if (available && order.pharmacy?.noorPaymentType === 'BALANCE' && price !== null && order.pharmacy?.balance < price) {
       available = false
       errorMessage = 'Недостаточно средств на балансе'
     }
@@ -213,22 +224,30 @@ router.post('/:token/millennium/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true } } },
+      include: {
+        pharmacy: { select: { lat: true, lng: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'millennium' }, select: { markupPercent: true } } } },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
       return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
     }
-    if (!order.pharmacy.lat || !order.pharmacy.lng) {
-      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
     }
 
-    console.log(`[Millennium] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+    console.log(`[Millennium] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
-    const price = await millenniumApi.calcOrderCost(
-      order.pharmacy.lat, order.pharmacy.lng,
+    let price = await millenniumApi.calcOrderCost(
+      senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
+
+    const millenniumMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    if (millenniumMarkup > 0 && price !== null) price = roundTo500(price * (1 + millenniumMarkup / 100))
 
     console.log(`[Millennium] result: available=true, price=${price}`)
 
@@ -244,20 +263,25 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
   try {
     const order = await prisma.order.findUnique({
       where: { token: req.params.token },
-      include: { pharmacy: { select: { lat: true, lng: true } } },
+      include: {
+        pharmacy: { select: { lat: true, lng: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'mytaxi' }, select: { markupPercent: true } } } },
+      },
     })
     if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
     if (!order.customerLat || !order.customerLng) {
       return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
     }
-    if (!order.pharmacy.lat || !order.pharmacy.lng) {
-      return res.status(400).json({ success: false, message: 'Координаты аптеки не настроены' })
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
     }
 
-    console.log(`[MyTaxi] evaluate coords: pharmacy(${order.pharmacy.lat},${order.pharmacy.lng}) -> customer(${order.customerLat},${order.customerLng})`)
+    console.log(`[MyTaxi] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
 
     const result = await mytaxiApi.getOffer(
-      order.pharmacy.lat, order.pharmacy.lng,
+      senderLat, senderLng,
       order.customerLat, order.customerLng,
     )
 
@@ -268,11 +292,16 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
       return res.json({ success: true, data: { available: false, price: null, eta: null, error: 'Доставка недоступна в этом районе' } })
     }
 
+    const mytaxiMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    const mytaxiPrice = mytaxiMarkup > 0
+      ? roundTo500(deliveryOffer.total_price * (1 + mytaxiMarkup / 100))
+      : deliveryOffer.total_price
+
     res.json({
       success: true,
       data: {
         available: true,
-        price: deliveryOffer.total_price,
+        price: mytaxiPrice,
         eta: result?.route?.duration ?? null,
         error: null,
       },
