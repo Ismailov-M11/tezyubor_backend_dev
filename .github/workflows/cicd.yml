@@ -50,7 +50,6 @@ jobs:
                 printf '%s=%s\n' "$key" "$value" >> "$target"
               done
           }
-#          source .github/scripts/export.sh
           fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" .env
           ls -la
           pwd
