@@ -30,7 +30,6 @@ jobs:
           secrets: |
             kv/data/tezyubor/${{ env.ENVIRONMENT }}/shared/db * ;
             kv/data/tezyubor/${{ env.ENVIRONMENT }}/shared/vps * ;
-            kv/data/tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app * ;
 
       - name: Fetch app variables from Vault
         env:
