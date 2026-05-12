@@ -35,9 +35,24 @@ jobs:
       - name: Fetch app variables from Vault
         env:
           VAULT_ADDR: ${{ secrets.VAULT_ADDR }}
-          DEBUG: true
         run: |
-          source .github/scripts/export.sh
+          fetch() {
+            local path="$1"
+            local target="$2"
+          
+            curl -sf \
+              -H "X-Vault-Token: ${VAULT_TOKEN}" \
+              "${VAULT_ADDR}/v1/kv/data/${path}" \
+            | jq -r '
+                .data.data
+                | to_entries[]
+                | "\(.key)\t\(.value)"
+              ' \
+            | while IFS=$'\t' read -r key value; do
+                printf '%s=%s\n' "$key" "$value" >> "$target"
+              done
+          }
+          
           fetch "tezyubor/${{ env.ENVIRONMENT }}/${{ env.SERVICE_NAME }}/app" .env
           ls -la
           pwd
