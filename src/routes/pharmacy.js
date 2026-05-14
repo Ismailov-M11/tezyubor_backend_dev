@@ -92,6 +92,21 @@ router.put('/me', async (req, res, next) => {
   }
 })
 
+// DELETE /api/pharmacy/me — self-delete account
+router.delete('/me', async (req, res, next) => {
+  try {
+    const id = req.user.id
+    await prisma.$transaction([
+      prisma.subscriptionPayment.deleteMany({ where: { pharmacyId: id } }),
+      prisma.order.deleteMany({ where: { pharmacyId: id } }),
+      prisma.pharmacy.delete({ where: { id } }),
+    ])
+    res.json({ success: true, message: 'Account deleted' })
+  } catch (err) {
+    next(err)
+  }
+})
+
 // PUT /api/pharmacy/location — set own location (no subscription check)
 router.put('/location', async (req, res, next) => {
   try {
