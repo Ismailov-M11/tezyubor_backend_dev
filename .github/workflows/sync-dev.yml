@@ -27,5 +27,6 @@ jobs:
         env:
           TOKEN: ${{ secrets.DEV_SYNC_TOKEN }}
         run: |
+          git config --unset-all http.https://github.com/.extraheader || true
           git remote add personal "https://x-access-token:${TOKEN}@github.com/Ismailov-M11/tezyubor_backend_dev.git"
           git push personal HEAD:main --force
