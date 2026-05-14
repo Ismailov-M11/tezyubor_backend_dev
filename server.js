@@ -33,6 +33,9 @@ const ALLOWED_ORIGINS = [
   'https://admin.tezyubor.uz',
   'https://api.tezyubor.uz',
   'http://localhost:5173',
+  'https://tezyubor.netlify.app',
+  'https://admin-tezyubor.netlify.app',
+  'https://app-tezyubor.netlify.app',
 ].filter(Boolean)
 
 const corsOptions = {
