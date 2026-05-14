@@ -204,6 +204,14 @@ Authorization: Bearer <token>
         },
         responses: { 200: { description: 'Обновлённый профиль' } },
       },
+      delete: {
+        tags: ['Pharmacy'], summary: 'Удалить собственный аккаунт',
+        description: 'Необратимо удаляет профиль аптеки вместе со всеми заказами и платёжной историей.',
+        responses: {
+          200: { description: 'Аккаунт удалён', content: { 'application/json': { schema: { type: 'object', properties: { success: { type: 'boolean', example: true }, message: { type: 'string', example: 'Account deleted' } } } } } },
+          401: { description: 'Не авторизован' },
+        },
+      },
     },
 
     '/api/pharmacy/location': {
