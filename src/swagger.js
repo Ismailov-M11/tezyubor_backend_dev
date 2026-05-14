@@ -24,7 +24,10 @@ Authorization: Bearer <token>
 | (публично) | /api/orders/:token/* |
     `.trim(),
   },
-  servers: [{ url: 'https://api.tezyubor.uz', description: 'Production' }],
+  servers: [
+    { url: 'https://api.tezyubor.uz', description: 'Prod Server' },
+    { url: 'https://tezyuborbackend-production.up.railway.app', description: 'DEV Server' },
+  ],
   components: {
     securitySchemes: {
       BearerAuth: { type: 'http', scheme: 'bearer', bearerFormat: 'JWT' },
