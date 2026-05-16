@@ -26,7 +26,7 @@ Authorization: Bearer <token>
   },
   servers: [
     { url: 'https://api.tezyubor.uz', description: 'Prod Server' },
-    { url: 'https://tezyuborbackend-production.up.railway.app', description: 'Dev Server' },
+    { url: 'https://dev-api.tezyubor.uz', description: 'Dev Server' },
   ],
   components: {
     securitySchemes: {
