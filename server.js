@@ -36,6 +36,7 @@ const ALLOWED_ORIGINS = [
   'https://tezyubor.netlify.app',
   'https://admin-tezyubor.netlify.app',
   'https://app-tezyubor.netlify.app',
+  'https://tezyubor-web.netlify.app',
 ].filter(Boolean)
 
 const corsOptions = {
