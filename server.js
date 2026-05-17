@@ -35,6 +35,7 @@ const ALLOWED_ORIGINS = [
   'https://dev.tezyubor.uz',
   'https://dev-app.tezyubor.uz',
   'https://dev-admin.tezyubor.uz',
+  'https://dev-api.tezyubor.uz',
   'http://localhost:5173',
   'https://tezyubor.netlify.app',
   'https://admin-tezyubor.netlify.app',
