@@ -51,7 +51,7 @@ const corsOptions = {
   credentials: true,
 }
 
-app.use(helmet({ crossOriginResourcePolicy: false }))
+app.use(helmet({ crossOriginResourcePolicy: false, contentSecurityPolicy: false }))
 app.use(morgan('combined'))
 app.use(express.json())
 
