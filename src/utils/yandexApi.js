@@ -1,4 +1,4 @@
-const { v4: uuidv4 } = require('uuid')
+const { randomUUID } = require('crypto')
 
 const YANDEX_HOST  = 'https://b2b.taxi.yandex.net/b2b/cargo/integration/v2'
 const YANDEX_TOKEN = process.env.YANDEX_TOKEN
@@ -76,7 +76,7 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
  * Returns { claimId, version }
  */
 async function createClaim(order, offerId) {
-  const requestId = uuidv4()
+  const requestId = randomUUID()
   const callbackUrl = process.env.YANDEX_CALLBACK_URL || 'https://api.tezyubor.uz/api/yandex/webhook?'
 
   const senderPhone = normalizePhone(order.pharmacy?.phone ?? order.senderPhone)
