@@ -161,6 +161,25 @@ async function createClaim(order, offerId) {
 }
 
 /**
+ * Poll claims/info until status reaches ready_for_approval.
+ * Returns the info object with the current version to use for accept.
+ */
+async function waitForApproval(claimId, maxWaitMs = 30000) {
+  const deadline = Date.now() + maxWaitMs
+  const TERMINAL = ['estimating_failed', 'failed', 'cancelled']
+  while (Date.now() < deadline) {
+    const info = await getClaimInfo(claimId)
+    const status = info?.status
+    if (status === 'ready_for_approval') return info
+    if (TERMINAL.includes(status)) {
+      throw new Error(`Yandex claim ended with status: ${status}`)
+    }
+    await new Promise((r) => setTimeout(r, 1500))
+  }
+  throw new Error('Yandex claim did not reach ready_for_approval within 30s')
+}
+
+/**
  * Confirm (accept) a claim so Yandex starts searching for a courier.
  */
 async function acceptClaim(claimId, version = 1) {
@@ -220,4 +239,4 @@ async function getTrackingLink(claimId) {
   return data?.links?.[0]?.url ?? null
 }
 
-module.exports = { calculate, createClaim, acceptClaim, getClaimInfo, cancelClaim, getTrackingLink, CLAIM_STATUS_MAP }
+module.exports = { calculate, createClaim, waitForApproval, acceptClaim, getClaimInfo, cancelClaim, getTrackingLink, CLAIM_STATUS_MAP }

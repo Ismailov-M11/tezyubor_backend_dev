@@ -277,8 +277,9 @@ router.put('/orders/:token/confirm', requirePermission('orders:confirm'), async 
         const fromLng = order.pharmacy.lng
         const fromLat = order.pharmacy.lat
         const { offerId } = await yandexApi.calculate(fromLng, fromLat, order.customerLng, order.customerLat)
-        const { claimId, version } = await yandexApi.createClaim({ ...order, pharmacy: order.pharmacy }, offerId)
-        await yandexApi.acceptClaim(claimId, version)
+        const { claimId } = await yandexApi.createClaim({ ...order, pharmacy: order.pharmacy }, offerId)
+        const approvalInfo = await yandexApi.waitForApproval(claimId)
+        await yandexApi.acceptClaim(claimId, approvalInfo.version ?? 1)
         yandexClaimId = claimId
         try {
           trackingUrl = await yandexApi.getTrackingLink(claimId)
