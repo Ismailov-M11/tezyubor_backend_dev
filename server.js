@@ -21,6 +21,7 @@ const adminPartnersRoutes = require('./src/routes/adminPartners')
 const noorRoutes = require('./src/routes/noor')
 const millenniumRoutes = require('./src/routes/millennium')
 const mytaxiRoutes = require('./src/routes/mytaxi')
+const yandexRoutes = require('./src/routes/yandex')
 const webhooksRoutes = require('./src/routes/webhooks')
 
 const app = express()
@@ -60,6 +61,7 @@ app.use(express.json())
 app.use('/api/noor', noorRoutes)
 app.use('/api/millennium', millenniumRoutes)
 app.use('/api/mytaxi', mytaxiRoutes)
+app.use('/api/yandex', yandexRoutes)
 app.use('/api/webhooks', webhooksRoutes)
 
 // CORS for browser clients
