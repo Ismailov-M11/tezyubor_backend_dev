@@ -137,6 +137,7 @@ model Order {
   noorDisplayId      Int?
   millenniumOrderId  Int?
   mytaxiOrderId      Int?
+  yandexClaimId      String?
 
   statusLogs OrderStatusLog[]
 

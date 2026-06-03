@@ -4,6 +4,7 @@ const { auth } = require('../middleware/auth')
 const noorApi = require('../utils/noorApi')
 const millenniumApi = require('../utils/millenniumApi')
 const mytaxiApi = require('../utils/mytaxiApi')
+const yandexApi = require('../utils/yandexApi')
 
 const roundTo500 = (price) => Math.floor(price / 500 + 0.5) * 500
 
@@ -309,6 +310,42 @@ router.post('/:token/mytaxi/evaluate', async (req, res, next) => {
   } catch (err) {
     console.log('[MyTaxi] evaluate error:', err.message)
     res.json({ success: true, data: { available: false, price: null, eta: null, error: err.message } })
+  }
+})
+
+// POST /api/orders/:token/yandex/evaluate — get Yandex price & availability before confirming
+router.post('/:token/yandex/evaluate', async (req, res, next) => {
+  try {
+    const order = await prisma.order.findUnique({
+      where: { token: req.params.token },
+      include: {
+        pharmacy: { select: { lat: true, lng: true } },
+        partner: { select: { courierMarkups: { where: { courierType: 'yandex' }, select: { markupPercent: true } } } },
+      },
+    })
+    if (!order) return res.status(404).json({ success: false, message: 'Order not found' })
+    if (!order.customerLat || !order.customerLng) {
+      return res.status(400).json({ success: false, message: 'Координаты клиента не указаны' })
+    }
+    const senderLat = order.pharmacy?.lat ?? order.senderLat
+    const senderLng = order.pharmacy?.lng ?? order.senderLng
+    if (!senderLat || !senderLng) {
+      return res.status(400).json({ success: false, message: 'Координаты отправителя не указаны' })
+    }
+
+    console.log(`[Yandex] evaluate coords: sender(${senderLat},${senderLng}) -> customer(${order.customerLat},${order.customerLng})`)
+
+    const result = await yandexApi.calculate(senderLng, senderLat, order.customerLng, order.customerLat)
+
+    const yandexMarkup = order.partner?.courierMarkups?.[0]?.markupPercent ?? 0
+    const price = yandexMarkup > 0 ? roundTo500(result.price * (1 + yandexMarkup / 100)) : result.price
+
+    console.log(`[Yandex] result: available=${result.available}, price=${price}`)
+
+    res.json({ success: true, data: { available: result.available, price, error: null } })
+  } catch (err) {
+    console.log('[Yandex] evaluate error:', err.message)
+    res.json({ success: true, data: { available: false, price: null, error: err.message } })
   }
 })
 

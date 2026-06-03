@@ -289,6 +289,7 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
     let noorDisplayId = order.noorDisplayId
     let millenniumOrderId = order.millenniumOrderId
     let mytaxiOrderId = order.mytaxiOrderId
+    let yandexClaimId = order.yandexClaimId
     let trackingUrl = order.trackingUrl
     let orderPaymentType = order.paymentType
 
@@ -360,12 +361,23 @@ router.put('/orders/:token/confirm', async (req, res, next) => {
         }
         const mtRes = await mytaxiApi.createOrder({ ...order, pharmacy: order.pharmacy }, offerResult.offer_id)
         mytaxiOrderId = mtRes?.order_id ?? null
+      } else if (courier === 'yandex') {
+        const yandexApi = require('../utils/yandexApi')
+        const fromLng = order.pharmacy.lng
+        const fromLat = order.pharmacy.lat
+        const { offerId } = await yandexApi.calculate(fromLng, fromLat, order.customerLng, order.customerLat)
+        const { claimId, version } = await yandexApi.createClaim({ ...order, pharmacy: order.pharmacy }, offerId)
+        await yandexApi.acceptClaim(claimId, version)
+        yandexClaimId = claimId
+        try {
+          trackingUrl = await yandexApi.getTrackingLink(claimId)
+        } catch (_) {}
       }
     }
 
     const updated = await prisma.order.update({
       where: { token: req.params.token },
-      data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, trackingUrl, paymentType: orderPaymentType },
+      data: { status: 'confirmed', noorOrderId, noorDisplayId, millenniumOrderId, mytaxiOrderId, yandexClaimId, trackingUrl, paymentType: orderPaymentType },
     })
     await prisma.orderStatusLog.create({
       data: { orderId: order.id, status: 'confirmed', actor: 'pharmacy', actorName: order.pharmacy.name || null },
