@@ -73,7 +73,7 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
   if (courierOffer) {
     const result = {
       available:      true,
-      price:          Math.round(parseFloat(courierOffer.price?.total_price ?? 0)),
+      price:          Math.round(parseFloat(courierOffer.price?.total_price_with_vat ?? courierOffer.price?.total_price ?? 0)),
       offerId:        courierOffer.payload,
       offerTtl:       courierOffer.offer_ttl,
       taxiClass:      'courier',
@@ -89,7 +89,7 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
   if (!expressOffer) throw new Error('Yandex: no offer available (courier or express)')
   const result = {
     available:      true,
-    price:          Math.round(parseFloat(expressOffer.price?.total_price ?? 0)),
+    price:          Math.round(parseFloat(expressOffer.price?.total_price_with_vat ?? expressOffer.price?.total_price ?? 0)),
     offerId:        expressOffer.payload,
     offerTtl:       expressOffer.offer_ttl,
     taxiClass:      expressOffer.taxi_class ?? 'express',
