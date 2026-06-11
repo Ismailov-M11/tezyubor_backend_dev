@@ -82,6 +82,7 @@ router.post('/', async (req, res, next) => {
             { courierType: 'millennium', markupPercent: 0, isEnabled: true },
             { courierType: 'mytaxi',     markupPercent: 0, isEnabled: true },
             { courierType: 'yandex',     markupPercent: 0, isEnabled: false },
+            { courierType: 'test',       markupPercent: 0, isEnabled: false },
           ],
         },
       },
