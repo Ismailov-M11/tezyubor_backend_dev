@@ -198,7 +198,8 @@ async function waitForApproval(claimId, maxWaitMs = 30000) {
     const status = info?.status
     if (status === 'ready_for_approval') return info
     if (TERMINAL.includes(status)) {
-      throw new Error(`Yandex claim ended with status: ${status}`)
+      const errorCodes = (info?.error_messages ?? []).map((e) => e.code).join(', ')
+      throw new Error(`Yandex claim ended with status: ${status}${errorCodes ? ` [${errorCodes}]` : ''}`)
     }
     await new Promise((r) => setTimeout(r, 1500))
   }
