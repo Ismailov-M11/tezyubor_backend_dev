@@ -73,7 +73,7 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
   if (courierOffer) {
     const result = {
       available:      true,
-      price:          Math.round(parseFloat(courierOffer.price?.total_price ?? 0)),
+      price:          Math.round(parseFloat(courierOffer.price?.total_price_with_vat ?? courierOffer.price?.total_price ?? 0)),
       offerId:        courierOffer.payload,
       offerTtl:       courierOffer.offer_ttl,
       taxiClass:      'courier',
@@ -89,7 +89,7 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
   if (!expressOffer) throw new Error('Yandex: no offer available (courier or express)')
   const result = {
     available:      true,
-    price:          Math.round(parseFloat(expressOffer.price?.total_price ?? 0)),
+    price:          Math.round(parseFloat(expressOffer.price?.total_price_with_vat ?? expressOffer.price?.total_price ?? 0)),
     offerId:        expressOffer.payload,
     offerTtl:       expressOffer.offer_ttl,
     taxiClass:      expressOffer.taxi_class ?? 'express',
@@ -130,7 +130,7 @@ async function createClaim(order, offerId, taxiClass = 'courier', skipDoorToDoor
       cost_currency: 'UZS',
       cost_value:    String(Math.round(order.medicinesTotal ?? 0)) + '.00',
       droppof_point: 2,
-      extra_id:      String(order.id),
+      extra_id:      String(order.token),
       pickup_point:  1,
       quantity:      1,
       size:          { height: 0.1, length: 0.1, width: 0.1 },
@@ -147,7 +147,7 @@ async function createClaim(order, offerId, taxiClass = 'courier', skipDoorToDoor
           comment:      '',
         },
         contact:          { name: senderName, phone: senderPhone },
-        external_order_id: String(order.id),
+        external_order_id: String(order.token),
         point_id:         1,
         skip_confirmation: true,
         type:             'source',
@@ -164,7 +164,7 @@ async function createClaim(order, offerId, taxiClass = 'courier', skipDoorToDoor
           ...(order.floor && { sfloor: String(order.floor) }),
         },
         contact:          { name: order.customerName || 'Получатель', phone: normalizePhone(order.customerPhone) },
-        external_order_id: String(order.id),
+        external_order_id: String(order.token),
         point_id:         2,
         skip_confirmation: true,
         type:             'destination',
