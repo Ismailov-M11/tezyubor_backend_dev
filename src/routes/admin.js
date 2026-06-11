@@ -276,8 +276,8 @@ router.put('/orders/:token/confirm', requirePermission('orders:confirm'), async 
         const yandexApi = require('../utils/yandexApi')
         const fromLng = order.pharmacy.lng
         const fromLat = order.pharmacy.lat
-        const { offerId } = await yandexApi.calculate(fromLng, fromLat, order.customerLng, order.customerLat)
-        const { claimId } = await yandexApi.createClaim({ ...order, pharmacy: order.pharmacy }, offerId)
+        const { offerId, taxiClass, skipDoorToDoor } = await yandexApi.calculate(fromLng, fromLat, order.customerLng, order.customerLat)
+        const { claimId } = await yandexApi.createClaim({ ...order, pharmacy: order.pharmacy }, offerId, taxiClass, skipDoorToDoor)
         const approvalInfo = await yandexApi.waitForApproval(claimId)
         await yandexApi.acceptClaim(claimId, approvalInfo.version ?? 1)
         yandexClaimId = claimId
