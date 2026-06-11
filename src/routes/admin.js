@@ -276,11 +276,53 @@ router.put('/orders/:token/confirm', requirePermission('orders:confirm'), async 
         const yandexApi = require('../utils/yandexApi')
         const fromLng = order.pharmacy.lng
         const fromLat = order.pharmacy.lat
-        const { offerId, taxiClass, skipDoorToDoor } = await yandexApi.calculate(fromLng, fromLat, order.customerLng, order.customerLat)
+
+        // Parse stored offer (saved at evaluate time)
+        let storedOffer = null
+        try {
+          const parsed = order.yandexClaimId ? JSON.parse(order.yandexClaimId) : null
+          if (parsed?.type === 'offer' && parsed?.payload) storedOffer = parsed
+        } catch (_) {}
+
+        const OFFER_TTL_MS = 9 * 60 * 1000
+        const offerFresh = storedOffer && (Date.now() - new Date(storedOffer.calculatedAt).getTime()) < OFFER_TTL_MS
+
+        let offerId, taxiClass, skipDoorToDoor
+
+        if (offerFresh) {
+          offerId      = storedOffer.payload
+          taxiClass    = storedOffer.taxiClass
+          skipDoorToDoor = storedOffer.skipDoorToDoor
+          console.log(`[Yandex] Using stored offer (taxiClass=${taxiClass}, age=${Math.round((Date.now() - new Date(storedOffer.calculatedAt).getTime()) / 1000)}s)`)
+        } else {
+          // Offer expired — recalculate, save new offer + price, return 409
+          console.log('[Yandex] Stored offer expired or missing — recalculating')
+          const calcResult = await yandexApi.calculate(fromLng, fromLat, order.customerLng, order.customerLat)
+          await prisma.order.update({
+            where: { token: req.params.token },
+            data: {
+              yandexClaimId: JSON.stringify({
+                type: 'offer',
+                payload: calcResult.offerId,
+                taxiClass: calcResult.taxiClass,
+                skipDoorToDoor: calcResult.skipDoorToDoor,
+                calculatedAt: new Date().toISOString(),
+              }),
+              deliveryPrice: calcResult.price,
+              totalPrice: (order.medicinesTotal || 0) + calcResult.price,
+            },
+          })
+          return res.status(409).json({
+            success: false,
+            message: 'Срок расчёта доставки истёк. Цена доставки обновлена. Пожалуйста, проверьте новую цену и подтвердите заказ заново.',
+            data: { newDeliveryPrice: calcResult.price },
+          })
+        }
+
         const { claimId } = await yandexApi.createClaim({ ...order, pharmacy: order.pharmacy }, offerId, taxiClass, skipDoorToDoor)
         const approvalInfo = await yandexApi.waitForApproval(claimId)
         await yandexApi.acceptClaim(claimId, approvalInfo.version ?? 1)
-        yandexClaimId = claimId
+        yandexClaimId = claimId  // overwrite offer JSON with real claim ID
         try {
           trackingUrl = await yandexApi.getTrackingLink(claimId)
         } catch (_) {}

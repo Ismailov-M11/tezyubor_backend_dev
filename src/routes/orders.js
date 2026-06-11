@@ -342,6 +342,22 @@ router.post('/:token/yandex/evaluate', async (req, res, next) => {
 
     console.log(`[Yandex] result: available=${result.available}, price=${price}`)
 
+    // Save offer metadata so dispatch can reuse the same offer (valid 10 min)
+    if (result.available && result.offerId) {
+      await prisma.order.update({
+        where: { id: order.id },
+        data: {
+          yandexClaimId: JSON.stringify({
+            type: 'offer',
+            payload: result.offerId,
+            taxiClass: result.taxiClass,
+            skipDoorToDoor: result.skipDoorToDoor,
+            calculatedAt: new Date().toISOString(),
+          }),
+        },
+      })
+    }
+
     res.json({ success: true, data: { available: result.available, price, error: null } })
   } catch (err) {
     console.log('[Yandex] evaluate error:', err.message)
