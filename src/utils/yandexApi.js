@@ -117,7 +117,7 @@ async function createClaim(order, offerId, taxiClass = 'courier', skipDoorToDoor
   const comment = order.pharmacyComment || 'Товары'
 
   const body = {
-    offer_payload: offerId,
+    ...(taxiClass === 'express' ? { offer_payload: offerId } : {}),
     callback_properties: { callback_url: callbackUrl },
     client_requirements: { assign_robot: false, pro_courier: false, taxi_class: taxiClass, cargo_options: [] },
     comment,
