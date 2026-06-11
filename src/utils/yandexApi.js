@@ -38,44 +38,70 @@ function normalizePhone(phone) {
 
 /**
  * Calculate delivery price via offers/calculate.
- * Returns { available, price, offerId, offerTtl }
+ * Uses two-step tariff selection: courier first, express fallback.
+ * Returns { available, price, offerId, offerTtl, taxiClass, skipDoorToDoor }
  */
 async function calculate(fromLng, fromLat, toLng, toLat) {
-  const body = {
-    items: [{ quantity: 1, size: { height: 0.1, length: 0.1, width: 0.1 }, weight: 1 }],
-    client_requirements: { assign_robot: false, pro_courier: false, cargo_options: [], taxi_class: 'courier' },
-    route_points: [
-      { coordinates: [fromLng, fromLat] },
-      { coordinates: [toLng,   toLat]   },
-    ],
-    skip_door_to_door: false,
+  const baseItems = [{ quantity: 1, size: { height: 0.1, length: 0.1, width: 0.1 }, weight: 1 }]
+  const baseRequirements = { assign_robot: false, pro_courier: false, cargo_options: [], taxi_class: null }
+
+  async function doCalculate(skipDoorToDoor) {
+    const body = {
+      items: baseItems,
+      client_requirements: baseRequirements,
+      route_points: [
+        { coordinates: [fromLng, fromLat] },
+        { coordinates: [toLng,   toLat]   },
+      ],
+      skip_door_to_door: skipDoorToDoor,
+    }
+    const res = await fetch(`${YANDEX_HOST}/offers/calculate`, {
+      method: 'POST',
+      headers: headers(),
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const text = await res.text()
+      throw new Error(`Yandex calculate failed ${res.status}: ${text}`)
+    }
+    return res.json()
   }
-  const res = await fetch(`${YANDEX_HOST}/offers/calculate`, {
-    method: 'POST',
-    headers: headers(),
-    body: JSON.stringify(body),
-  })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Yandex calculate failed ${res.status}: ${text}`)
+
+  // Step 1: try courier (skip_door_to_door: false)
+  const data1 = await doCalculate(false)
+  const courierOffer = data1?.offers?.find((o) => o.taxi_class === 'courier')
+  if (courierOffer) {
+    return {
+      available:      true,
+      price:          Math.round(parseFloat(courierOffer.price?.total_price ?? 0)),
+      offerId:        courierOffer.payload,
+      offerTtl:       courierOffer.offer_ttl,
+      taxiClass:      'courier',
+      skipDoorToDoor: false,
+    }
   }
-  const data = await res.json()
-  const offer = data?.offers?.find((o) => o.taxi_class === 'courier') ?? data?.offers?.[0]
-  if (!offer) throw new Error('Yandex: no courier offer available')
+
+  // Step 2: fallback to express (skip_door_to_door: true)
+  const data2 = await doCalculate(true)
+  const expressOffer = data2?.offers?.find((o) => o.taxi_class === 'express') ?? data2?.offers?.[0]
+  if (!expressOffer) throw new Error('Yandex: no offer available (courier or express)')
   return {
-    available: true,
-    price:     Math.round(parseFloat(offer.price?.total_price ?? 0)),
-    offerId:   offer.payload,
-    offerTtl:  offer.offer_ttl,
+    available:      true,
+    price:          Math.round(parseFloat(expressOffer.price?.total_price ?? 0)),
+    offerId:        expressOffer.payload,
+    offerTtl:       expressOffer.offer_ttl,
+    taxiClass:      expressOffer.taxi_class ?? 'express',
+    skipDoorToDoor: true,
   }
 }
 
 /**
  * Create a Yandex delivery claim.
  * offerId — payload from offers/calculate.
+ * taxiClass and skipDoorToDoor must match what was used in calculate.
  * Returns { claimId, version }
  */
-async function createClaim(order, offerId) {
+async function createClaim(order, offerId, taxiClass = 'courier', skipDoorToDoor = false) {
   const requestId = randomUUID()
   const callbackUrl = process.env.YANDEX_CALLBACK_URL || 'https://api.tezyubor.uz/api/yandex/webhook?'
 
@@ -91,9 +117,9 @@ async function createClaim(order, offerId) {
   const comment = order.pharmacyComment || 'Товары'
 
   const body = {
-    offer: { offer_id: offerId },
+    offer_payload: offerId,
     callback_properties: { callback_url: callbackUrl },
-    client_requirements: { assign_robot: false, pro_courier: false, taxi_class: 'courier', cargo_options: [] },
+    client_requirements: { assign_robot: false, pro_courier: false, taxi_class: taxiClass, cargo_options: [] },
     comment,
     emergency_contact: { name: senderName, phone: senderPhone },
     items: [{
@@ -143,7 +169,7 @@ async function createClaim(order, offerId) {
     ],
     skip_act:              true,
     skip_client_notify:    false,
-    skip_door_to_door:     false,
+    skip_door_to_door:     skipDoorToDoor,
     skip_emergency_notify: false,
   }
 
