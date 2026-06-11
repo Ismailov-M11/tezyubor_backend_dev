@@ -55,23 +55,23 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
       ],
       skip_door_to_door: skipDoorToDoor,
     }
+    console.log(`[Yandex] offers/calculate REQUEST skip_door_to_door=${skipDoorToDoor}:`, JSON.stringify(body))
     const res = await fetch(`${YANDEX_HOST}/offers/calculate`, {
       method: 'POST',
       headers: headers(),
       body: JSON.stringify(body),
     })
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`Yandex calculate failed ${res.status}: ${text}`)
-    }
-    return res.json()
+    const text = await res.text()
+    console.log(`[Yandex] offers/calculate RESPONSE ${res.status}:`, text)
+    if (!res.ok) throw new Error(`Yandex calculate failed ${res.status}: ${text}`)
+    return JSON.parse(text)
   }
 
   // Step 1: try courier (skip_door_to_door: false)
   const data1 = await doCalculate(false)
   const courierOffer = data1?.offers?.find((o) => o.taxi_class === 'courier')
   if (courierOffer) {
-    return {
+    const result = {
       available:      true,
       price:          Math.round(parseFloat(courierOffer.price?.total_price ?? 0)),
       offerId:        courierOffer.payload,
@@ -79,13 +79,15 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
       taxiClass:      'courier',
       skipDoorToDoor: false,
     }
+    console.log(`[Yandex] calculate RESULT (courier): price=${result.price}, ttl=${result.offerTtl}`)
+    return result
   }
 
   // Step 2: fallback to express (skip_door_to_door: true)
   const data2 = await doCalculate(true)
   const expressOffer = data2?.offers?.find((o) => o.taxi_class === 'express') ?? data2?.offers?.[0]
   if (!expressOffer) throw new Error('Yandex: no offer available (courier or express)')
-  return {
+  const result = {
     available:      true,
     price:          Math.round(parseFloat(expressOffer.price?.total_price ?? 0)),
     offerId:        expressOffer.payload,
@@ -93,6 +95,8 @@ async function calculate(fromLng, fromLat, toLng, toLat) {
     taxiClass:      expressOffer.taxi_class ?? 'express',
     skipDoorToDoor: true,
   }
+  console.log(`[Yandex] calculate RESULT (express): price=${result.price}, ttl=${result.offerTtl}`)
+  return result
 }
 
 /**
@@ -173,16 +177,16 @@ async function createClaim(order, offerId, taxiClass = 'courier', skipDoorToDoor
     skip_emergency_notify: false,
   }
 
+  console.log(`[Yandex] claims/create REQUEST (taxiClass=${taxiClass}, skipDoorToDoor=${skipDoorToDoor}):`, JSON.stringify(body))
   const res = await fetch(`${YANDEX_HOST}/claims/create?request_id=${requestId}`, {
     method: 'POST',
     headers: headers(),
     body: JSON.stringify(body),
   })
-  if (!res.ok) {
-    const text = await res.text()
-    throw new Error(`Yandex createClaim failed ${res.status}: ${text}`)
-  }
-  const data = await res.json()
+  const text = await res.text()
+  console.log(`[Yandex] claims/create RESPONSE ${res.status}:`, text)
+  if (!res.ok) throw new Error(`Yandex createClaim failed ${res.status}: ${text}`)
+  const data = JSON.parse(text)
   return { claimId: data.id, version: data.version ?? 1 }
 }
 
